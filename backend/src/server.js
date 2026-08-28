@@ -11,6 +11,10 @@ const app = express()
 
 app.use(express.json())
 
+// In production (after `npm run build`) serve the bundled React frontend.
+const CLIENT_DIST = path.join(__dirname, '..', '..', 'frontend', 'dist')
+app.use(express.static(CLIENT_DIST))
+
 // Serve static files and media referenced by the datasets
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data')
 app.use('/static', express.static(path.join(DATA_DIR, 'static')))

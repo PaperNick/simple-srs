@@ -4,7 +4,7 @@ Express + SQLite API that powers Simple SRS. It exposes the REST endpoints and r
 
 ## Stack
 
-- **Express 5** - HTTP server
+- **Express 5** - HTTP server + static serving of the built frontend
 - **better-sqlite3** - local SQLite database
 - **Node.js 24+** (sqlite driver requires a Node with prebuilt binaries)
 
@@ -20,7 +20,11 @@ This creates the local database on first run at `data/simple_srs.sqlite` and see
 
 ### Production
 
+The backend serves the React UI from `../frontend/dist`. Build it first:
+
 ```bash
+cd ../frontend && npm ci && npm run build
+cd ../backend
 npm start
 ```
 

@@ -13,3 +13,6 @@ backend/data/
 .env.*
 !.env.example
 
+# Prod builds
+frontend/dist
+frontend/.vite

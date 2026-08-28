@@ -1,0 +1,164 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { playItemAudio, itemAudioSrc } from '../audio.js'
+import { SHORTCUTS, isShortcut } from '../shortcuts.js'
+import ShortcutHints from './ShortcutHints.jsx'
+
+/**
+ * Show a single lesson card: reveal the answer, then continue to the next step
+ * (or finish the lesson on the last step).
+ *
+ * @param {{ item: object, isLast: boolean, onNext: Function }} props
+ *   The card item, whether this is the last step, and the next-step callback.
+ */
+export default function LessonCard({ item, isLast, onNext }) {
+  const [revealed, setRevealed] = useState(false)
+  const isMeaning = item.question_type === 'meaning'
+  const label = isMeaning ? 'Vocabulary Meaning' : 'Vocabulary Reading'
+  const answer = isMeaning ? item.meaning : item.readings.join(', ')
+
+  // Reveal the answer first; only continue to the next step once it's revealed.
+  const advance = useCallback(() => {
+    if (!revealed) {
+      setRevealed(true)
+    } else {
+      onNext()
+    }
+  }, [revealed, onNext])
+
+  // Enter acts like "Reveal", then like "Continue"/"Finish Lesson".
+  useEffect(() => {
+    const handler = event => {
+      if (!isShortcut(event, SHORTCUTS.reveal)) {
+        return
+      }
+      event.preventDefault()
+      advance()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [advance])
+
+  useEffect(() => {
+    const handler = event => {
+      if (!isShortcut(event, SHORTCUTS.playAudio)) {
+        return
+      }
+      if (!revealed) {
+        return
+      }
+      playItemAudio(item)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [revealed, item])
+
+  return (
+    <div
+      className={`card ${revealed ? 'result-correct' : ''} type-${isMeaning ? 'meaning' : 'reading'}`}
+    >
+      <div className="banner tall">
+        <div className="banner-char">{item.characters}</div>
+      </div>
+      <div className="subtitle-bar">{label}</div>
+
+      {revealed && <div className="result-bar green">{answer}</div>}
+
+      <div className="answer-zone">
+        <button className="submit-btn" onClick={() => setRevealed(true)} disabled={revealed}>
+          {revealed ? 'Learning ✔' : 'Reveal'}
+        </button>
+      </div>
+
+      {revealed && <ItemDetails item={item} defaultOpen={['meaning', 'reading']} />}
+
+      <div className="action-row">
+        {revealed ? <ShortcutHints /> : <span />}
+        <button className="next-btn" onClick={advance}>
+          {isLast ? 'Finish Lesson' : 'Continue'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Render the collapsible "Meaning" and "Reading" detail panels for an item, and
+ * sync their open state (both expandable via the shortcut).
+ *
+ * @param {{ item: object, defaultOpen?: string[]|string|null }} props
+ *   The card item and which panels start open.
+ */
+export function ItemDetails({ item, defaultOpen = null }) {
+  const initial = useMemo(() => {
+    const panels = Array.isArray(defaultOpen) ? defaultOpen : defaultOpen ? [defaultOpen] : []
+    return new Set(panels)
+  }, [defaultOpen])
+  const [open, setOpen] = useState(initial)
+
+  // Press the expand shortcut to open all available tabs (Meaning + Reading).
+  useEffect(() => {
+    const handler = event => {
+      if (!isShortcut(event, SHORTCUTS.expandDetails)) {
+        return
+      }
+      setOpen(new Set(['meaning', 'reading'].filter(panel => panel === 'reading' || item.meaning)))
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [item])
+
+  const toggle = panel => {
+    setOpen(previous => {
+      const next = new Set(previous)
+      if (next.has(panel)) {
+        next.delete(panel)
+      } else {
+        next.add(panel)
+      }
+      return next
+    })
+  }
+
+  return (
+    <div className="details">
+      {item.meaning && (
+        <div className={`detail-row ${open.has('meaning') ? 'open' : ''}`}>
+          <div className="detail-head" onClick={() => toggle('meaning')}>
+            <span className="chev">›</span>
+            <span>Meaning</span>
+          </div>
+          {open.has('meaning') && (
+            <div className="detail-body">
+              <div className="meaning-text">{item.meaning}</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className={`detail-row ${open.has('reading') ? 'open' : ''}`}>
+        <div className="detail-head" onClick={() => toggle('reading')}>
+          <span className="chev">›</span>
+          <span>Reading</span>
+        </div>
+        {open.has('reading') && (
+          <div className="detail-body">
+            {item.readings.map(reading => (
+              <div key={reading} className="reading-item">
+                {itemAudioSrc(item) && (
+                  <button
+                    className="speak-btn"
+                    aria-label="Play audio"
+                    onClick={() => playItemAudio(item)}
+                  >
+                    🔊
+                  </button>
+                )}
+                <span className="reading-text">{reading}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
