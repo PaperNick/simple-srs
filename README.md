@@ -1,6 +1,8 @@
 # Simple SRS
 
-A dataset-driven spaced-repetition (SRS) and practice app for learning Vocabulary.
+[![CI](https://github.com/PaperNick/simple-srs/actions/workflows/ci.yml/badge.svg)](https://github.com/PaperNick/simple-srs/actions)
+
+A dataset-driven spaced-repetition and practice app for learning Vocabulary.
 Each dataset declared in `backend/data/datasets.json` becomes its own deck:
 
 - **Practice** - Endless, no-SRS stages
