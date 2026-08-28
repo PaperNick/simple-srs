@@ -8,6 +8,10 @@ Each dataset declared in `backend/data/datasets.json` becomes its own deck:
 - **Practice** - Endless, no-SRS stages
 - **SRS** - Lessons + stage-based reviews for vocabulary
 
+## Demo
+
+[Demo video](https://github.com/user-attachments/assets/36e1238b-8d8c-4f3d-b593-ccb8410c9a77)
+
 Monorepo with three projects:
 
 - [`backend`](backend)  Express + better-sqlite3 API and SRS scheduler (port `3000`)
