@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# SQLite and other datasets
+backend/data/
+
+# Logs
+*.log
+*.log.*
+
+# Env
+.env
+.env.*
+!.env.example
+
