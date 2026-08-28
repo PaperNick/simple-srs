@@ -87,7 +87,9 @@ describe('meaningAlternatives', () => {
   })
   it('handles comma separated lists', () => {
     const alts = grading.meaningAlternatives('way, method, number')
-    for (const part of ['way', 'method', 'number']) assert.ok(alts.includes(part), part)
+    for (const part of ['way', 'method', 'number']) {
+      assert.ok(alts.includes(part), part)
+    }
   })
   it('splits on "or" / "and" and keeps the full string', () => {
     const alts = grading.meaningAlternatives('A thing or an object')

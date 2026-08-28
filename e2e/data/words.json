@@ -1,0 +1,82 @@
+[
+  {
+    "type": "vocabulary",
+    "characters": "가능성",
+    "meaning": "Possibility",
+    "readings": ["ganeungseong"],
+    "level": 1,
+    "audio": "/static/audio/korean/word/0474.mp3"
+  },
+  {
+    "type": "vocabulary",
+    "characters": "가다",
+    "meaning": "To go",
+    "readings": ["gada"],
+    "level": 1,
+    "audio": "/static/audio/korean/word/0151.mp3"
+  },
+  {
+    "type": "vocabulary",
+    "characters": "가슴",
+    "meaning": "Chest",
+    "readings": ["gaseum"],
+    "level": 1,
+    "audio": "/static/audio/korean/word/0382.mp3"
+  },
+  {
+    "type": "vocabulary",
+    "characters": "가운데",
+    "meaning": "In the middle",
+    "readings": ["gaunde"],
+    "level": 1,
+    "audio": null
+  },
+  {
+    "type": "vocabulary",
+    "characters": "가장",
+    "meaning": "Most",
+    "readings": ["gajang"],
+    "level": 1,
+    "audio": null
+  },
+  {
+    "type": "vocabulary",
+    "characters": "가족",
+    "meaning": "Family",
+    "readings": ["gajok"],
+    "level": 1,
+    "audio": null
+  },
+  {
+    "type": "vocabulary",
+    "characters": "가지",
+    "meaning": "One of the kind or a sort",
+    "readings": ["gaji"],
+    "level": 1,
+    "audio": null
+  },
+  {
+    "type": "vocabulary",
+    "characters": "가지다",
+    "meaning": "To have or take or hold",
+    "readings": ["gajida"],
+    "level": 1,
+    "audio": null
+  },
+  {
+    "type": "vocabulary",
+    "characters": "각",
+    "meaning": "Each or every",
+    "readings": ["gak"],
+    "level": 1,
+    "audio": null
+  },
+  {
+    "type": "vocabulary",
+    "characters": "간",
+    "meaning": "The interval between",
+    "readings": ["gan"],
+    "level": 1,
+    "audio": null
+  }
+]

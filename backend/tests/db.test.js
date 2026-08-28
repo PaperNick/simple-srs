@@ -133,7 +133,9 @@ describe('item queries', () => {
   })
 
   it('newItems respects the limit', () => {
-    for (let i = 0; i < 10; i++) insertRow({ characters: `w${i}`, level: 1 })
+    for (let i = 0; i < 10; i++) {
+      insertRow({ characters: `w${i}`, level: 1 })
+    }
     assert.equal(dbc.newItems(db, 4, TEST_DATASET).length, 4)
   })
 

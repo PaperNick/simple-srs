@@ -1,0 +1,20 @@
+[
+  {
+    "id": "hangul",
+    "name": "Hangul Alphabet",
+    "file": "hangul.json",
+    "mode": "practice",
+    "type": "character",
+    "badge": "Practice",
+    "description": "Practice recognizing Hangul endlessly! Grind for as long as you like."
+  },
+  {
+    "id": "words",
+    "name": "Korean Words",
+    "file": "words.json",
+    "mode": "srs",
+    "type": "vocabulary",
+    "badge": "SRS",
+    "description": "Learn the most common Korean words. Spaced repetition with stages."
+  }
+]
