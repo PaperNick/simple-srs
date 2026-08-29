@@ -1,13 +1,13 @@
-'use strict'
+import { describe, it, beforeEach } from 'node:test'
+import assert from 'node:assert/strict'
+import Database from 'better-sqlite3'
+import * as dbc from '../src/db'
 
-const { describe, it, beforeEach } = require('node:test')
-const assert = require('node:assert/strict')
-const Database = require('better-sqlite3')
-const dbc = require('../src/db.js')
+type DB = Database.Database
 
 const HOUR = 60 * 60 * 1000
 
-function makeDb() {
+function makeDb(): DB {
   const db = new Database(':memory:')
   db.exec(`
     CREATE TABLE items (
@@ -19,18 +19,23 @@ function makeDb() {
   return db
 }
 
-function insert(db, stage) {
-  return db
-    .prepare('INSERT INTO items (srs_stage, available_at) VALUES (?, ?)')
-    .run(stage, Date.now()).lastInsertRowid
+function insert(db: DB, stage: number): number {
+  return Number(
+    db.prepare('INSERT INTO items (srs_stage, available_at) VALUES (?, ?)').run(stage, Date.now())
+      .lastInsertRowid
+  )
 }
 
-function get(db, id) {
-  return db.prepare('SELECT * FROM items WHERE id = ?').get(id)
+function get(db: DB, id: number): { id: number; srs_stage: number; available_at: number | null } {
+  return db.prepare('SELECT * FROM items WHERE id = ?').get(id) as {
+    id: number
+    srs_stage: number
+    available_at: number | null
+  }
 }
 
 describe('scheduleAfterAnswer', () => {
-  let db
+  let db: DB
   beforeEach(() => {
     db = makeDb()
   })
@@ -42,7 +47,7 @@ describe('scheduleAfterAnswer', () => {
     assert.equal(r.stageName, 'Apprentice II')
     assert.equal(r.burned, false)
     // available_at = now + STAGES[1].interval (4h)
-    assert.ok(Math.abs(r.availableAt - Date.now() - 4 * HOUR) < 5000)
+    assert.ok(Math.abs((r.availableAt ?? 0) - Date.now() - 4 * HOUR) < 5000)
     assert.equal(get(db, id).srs_stage, 1)
   })
 

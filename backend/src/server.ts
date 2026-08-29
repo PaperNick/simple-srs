@@ -1,9 +1,20 @@
-'use strict'
-
-const path = require('path')
-const express = require('express')
-const dbc = require('./db')
-const { parseReadings, grade, gradeQuestion } = require('./grading')
+import path from 'node:path'
+import express from 'express'
+import type { NextFunction, Request, Response } from 'express'
+import * as dbc from './db'
+import { parseReadings, grade, gradeQuestion } from './grading'
+import type {
+  Card,
+  DatasetsResponse,
+  ItemRow,
+  ItemsResponse,
+  LessonCompleteResponse,
+  PracticeAnswerResponse,
+  ReviewAnswerResponse,
+  ReviewCard,
+  ReviewStartResponse,
+  VocabAddResponse,
+} from '@shared/types'
 
 const db = dbc.open()
 const BACKEND_PORT = process.env.BACKEND_PORT || 3000
@@ -12,21 +23,23 @@ const app = express()
 app.use(express.json())
 
 // In production (after `npm run build`) serve the bundled React frontend.
-const CLIENT_DIST = path.join(__dirname, '..', '..', 'frontend', 'dist')
+const CLIENT_DIST = path.join(import.meta.dirname, '..', '..', 'frontend', 'dist')
 app.use(express.static(CLIENT_DIST))
 
 // Serve static files and media referenced by the datasets
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data')
+const DATA_DIR = process.env.DATA_DIR || path.join(import.meta.dirname, '..', 'data')
 app.use('/static', express.static(path.join(DATA_DIR, 'static')))
 
-/**
- * Shape an item row into the public card metadata returned to the client.
- *
- * @param {object} item A database row.
- * @returns {{id: number, type: string, level: number, characters: string, readings: string[], meaning: string|null, audio: string|null}}
- *   The public card fields.
- */
-function toCard(item) {
+interface VocabAddBody {
+  characters?: string
+  meaning?: string
+  readings?: string[]
+  level?: number
+  dataset?: string
+}
+
+/** Shape an item row into the public card metadata returned to the client. */
+function toCard(item: ItemRow): Card {
   return {
     id: item.id,
     type: item.type,
@@ -40,33 +53,21 @@ function toCard(item) {
 
 /**
  * Read the required dataset id from the query string, responding with 400 when
- * it's missing. No default/fallback dataset is assumed - every dataset-scoped
- * endpoint is driven by the datasets.json registry via the frontend.
- *
- * @param {import('express').Request} req The request.
- * @param {import('express').Response} res The response.
- * @returns {string|null} The dataset id, or null after a 400 response.
+ * it's missing. No default/fallback dataset is assumed.
  */
-function datasetFrom(req, res) {
+function datasetFrom(req: Request, res: Response): string | null {
   const dataset = req.query.dataset
   if (dataset) {
-    return dataset
+    return String(dataset)
   }
   res.status(400).json({ error: 'dataset is required' })
   return null
 }
 
-/**
- * Look up the item referenced by a request body, responding with 404 when it
- * does not exist.
- *
- * @param {import('express').Request} req The request.
- * @param {import('express').Response} res The response.
- * @returns {object|null} The item row, or null after a 404 response.
- */
-function findItemOr404(req, res) {
-  const { item_id } = req.body || {}
-  const item = db.prepare('SELECT * FROM items WHERE id = ?').get(item_id)
+/** Look up the item referenced by a request body, responding with 404 when absent. */
+function findItemOr404(req: Request, res: Response): ItemRow | null {
+  const { item_id } = (req.body as { item_id?: number }) || {}
+  const item = db.prepare('SELECT * FROM items WHERE id = ?').get(item_id) as ItemRow | undefined
   if (item) {
     return item
   }
@@ -74,12 +75,13 @@ function findItemOr404(req, res) {
   return null
 }
 
-app.get('/api/stats', (req, res) => {
+app.get('/api/stats', (_req, res) => {
   res.json(dbc.stats(db))
 })
 
-app.get('/api/datasets', (req, res) => {
-  res.json({ datasets: dbc.datasets(db) })
+app.get('/api/datasets', (_req, res) => {
+  const body: DatasetsResponse = { datasets: dbc.datasets(db) }
+  res.json(body)
 })
 
 app.get('/api/practice/items', (req, res) => {
@@ -87,26 +89,27 @@ app.get('/api/practice/items', (req, res) => {
   if (!dataset) {
     return
   }
-  res.json({ items: dbc.practiceItems(db, dataset).map(toCard) })
+  const body: ItemsResponse = { items: dbc.practiceItems(db, dataset).map(toCard) }
+  res.json(body)
 })
 
-/**
- * Grade a practice answer. Reuses the same normalizer but never touches SRS.
- */
+/** Grade a practice answer. Reuses the same normalizer but never touches SRS. */
 app.post('/api/practice/answer', (req, res) => {
   const item = findItemOr404(req, res)
   if (!item) {
     return
   }
-  const result = grade(req.body?.input, item)
-  res.json({ correct: result.correct, accepted: result.accepted })
+  const { input } = (req.body as { input?: string }) || {}
+  const result = grade(input ?? '', item)
+  const body: PracticeAnswerResponse = Array.isArray(result)
+    ? { correct: false, accepted: result }
+    : { correct: result.correct, accepted: result.accepted }
+  res.json(body)
 })
 
-/**
- * Add a single vocabulary item. Useful for testing before you supply the dataset.
- */
+/** Add a single vocabulary item. Useful for testing before you supply the dataset. */
 app.post('/api/vocab', (req, res) => {
-  const { characters, meaning, readings, level, dataset } = req.body || {}
+  const { characters, meaning, readings, level, dataset } = (req.body as VocabAddBody) || {}
   if (!characters) {
     return res.status(400).json({ error: 'characters required' })
   }
@@ -114,7 +117,8 @@ app.post('/api/vocab', (req, res) => {
     return res.status(400).json({ error: 'dataset required' })
   }
   const id = dbc.addVocab(db, { characters, meaning, readings, level, dataset })
-  res.status(201).json({ id, stats: dbc.stats(db) })
+  const body: VocabAddResponse = { id, stats: dbc.stats(db) }
+  res.status(201).json(body)
 })
 
 app.get('/api/lesson/start', (req, res) => {
@@ -122,15 +126,13 @@ app.get('/api/lesson/start', (req, res) => {
   if (!dataset) {
     return
   }
-  const items = dbc.newItems(db, 5, dataset)
-  res.json({ items: items.map(toCard) })
+  const body: ItemsResponse = { items: dbc.newItems(db, 5, dataset).map(toCard) }
+  res.json(body)
 })
 
-/**
- * Mark the given items as learned and schedule their first review immediately.
- */
+/** Mark the given items as learned and schedule their first review immediately. */
 app.post('/api/lesson/complete', (req, res) => {
-  const ids = (req.body && req.body.item_ids) || []
+  const ids = ((req.body as { item_ids?: number[] }) || {}).item_ids || []
   const now = Date.now()
 
   let learnedCount = 0
@@ -143,23 +145,24 @@ app.post('/api/lesson/complete', (req, res) => {
       .run(now, ...ids).changes
     learnedCount = updatedCount
   }
-  res.json({ learned: learnedCount, stats: dbc.stats(db) })
+  const body: LessonCompleteResponse = { learned: learnedCount, stats: dbc.stats(db) }
+  res.json(body)
 })
 
 app.get('/api/review/start', (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100)
+  const limit = Math.min(parseInt(String(req.query.limit ?? ''), 10) || 20, 100)
   const dataset = datasetFrom(req, res)
   if (!dataset) {
     return
   }
   const items = dbc.dueItems(db, limit, dataset)
   // Ask reading OR meaning for each item (prompt -> recall either).
-  res.json({
-    due: items.map(item => ({
-      ...toCard(item),
-      question_type: Math.random() < 0.5 ? 'reading' : 'meaning',
-    })),
-  })
+  const due: ReviewCard[] = items.map(item => ({
+    ...toCard(item),
+    question_type: Math.random() < 0.5 ? 'reading' : 'meaning',
+  }))
+  const body: ReviewStartResponse = { due }
+  res.json(body)
 })
 
 app.post('/api/review/answer', (req, res) => {
@@ -167,8 +170,9 @@ app.post('/api/review/answer', (req, res) => {
   if (!item) {
     return
   }
-  const question_type = req.body?.question_type === 'meaning' ? 'meaning' : 'reading'
-  const result = gradeQuestion(item, req.body?.input, question_type)
+  const body = (req.body as { question_type?: string; input?: string }) || {}
+  const question_type = body.question_type === 'meaning' ? 'meaning' : 'reading'
+  const result = gradeQuestion(item, body.input ?? '', question_type)
   const schedule = dbc.scheduleAfterAnswer(db, item, result.correct)
 
   db.prepare(
@@ -179,13 +183,13 @@ app.post('/api/review/answer', (req, res) => {
   ).run(
     item.id,
     question_type,
-    String(req.body?.input || ''),
+    String(body.input || ''),
     result.correct ? 1 : 0,
     schedule.stage,
     Date.now()
   )
 
-  res.json({
+  const response: ReviewAnswerResponse = {
     correct: result.correct,
     expected: result.expectedDisplay,
     item: {
@@ -194,13 +198,12 @@ app.post('/api/review/answer', (req, res) => {
       stage_name: schedule.stageName,
       burned: schedule.burned,
     },
-  })
+  }
+  res.json(response)
 })
 
-/**
- * SPA fallback: serve the React bundle for any non-API GET (only if built).
- */
-app.use((req, res, next) => {
+/** SPA fallback: serve the React bundle for any non-API GET (only if built). */
+app.use((req: Request, res: Response, next: NextFunction) => {
   if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/static')) {
     return next()
   }
@@ -226,12 +229,8 @@ const server = app.listen(BACKEND_PORT, () => {
   console.log('Press Ctrl+C to stop.')
 })
 
-/**
- * Tear the server and database down cleanly on SIGINT/SIGTERM.
- *
- * @param {string} signal The received signal name.
- */
-function shutdown(signal) {
+/** Tear the server and database down cleanly on SIGINT/SIGTERM. */
+function shutdown(signal: string) {
   console.log(`\n${signal} received - shutting down…`)
   server.close(() => {
     try {
@@ -243,9 +242,7 @@ function shutdown(signal) {
   setTimeout(() => process.exit(0), 3000).unref()
 }
 
-/**
- * Stay attached to the terminal like `vite`: stop cleanly on Ctrl+C / SIGTERM.
- */
+/** Stay attached to the terminal like `vite`: stop cleanly on Ctrl+C / SIGTERM. */
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => shutdown(signal))
 }

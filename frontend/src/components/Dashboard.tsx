@@ -1,10 +1,14 @@
-/**
- * Return the CSS class used to colour an SRS stage row.
- *
- * @param {number} stage The SRS stage index.
- * @returns {string} The stage colour class.
- */
-function stageClass(stage) {
+import type { DatasetSummary } from '@shared/types'
+
+interface DashboardProps {
+  datasets: DatasetSummary[] | null
+  onPractice: (id: string) => void
+  onLesson: (id: string) => void
+  onReview: (id: string) => void
+}
+
+/** Return the CSS class used to colour an SRS stage row. */
+function stageClass(stage: number): string {
   if (stage >= 6) {
     return 'master'
   }
@@ -18,11 +22,8 @@ function stageClass(stage) {
  * Render the dashboard: one card per dataset driven by its metadata. `practice`
  * datasets show only the practice UI; `srs` datasets automatically populate
  * the lesson/review UI with SRS stats and a stage breakdown.
- *
- * @param {{ datasets?: Array, onPractice: Function, onLesson: Function, onReview: Function }} props
- *   The dataset list and the action callbacks.
  */
-export default function Dashboard({ datasets, onPractice, onLesson, onReview }) {
+export default function Dashboard({ datasets, onPractice, onLesson, onReview }: DashboardProps) {
   if (!datasets) {
     return (
       <div className="view">
@@ -125,7 +126,7 @@ export default function Dashboard({ datasets, onPractice, onLesson, onReview }) 
               <div className="stage-card">
                 <h2>SRS Stages</h2>
                 <div className="stage-list">
-                  {dataset.stages.map(stage => (
+                  {(dataset.stages ?? []).map(stage => (
                     <div key={stage.stage} className={`stage-row ${stageClass(stage.stage)}`}>
                       <span className="dot" />
                       <span className="name">{stage.name}</span>

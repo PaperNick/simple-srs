@@ -1,16 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { playItemAudio, itemAudioSrc } from '../audio.js'
-import { SHORTCUTS, isShortcut } from '../shortcuts.js'
-import ShortcutHints from './ShortcutHints.jsx'
+import { playItemAudio, itemAudioSrc } from '../audio'
+import { SHORTCUTS, isShortcut } from '../shortcuts'
+import ShortcutHints from './ShortcutHints'
+import type { Card, ReviewCard } from '@shared/types'
+
+interface LessonCardProps {
+  item: ReviewCard
+  isLast: boolean
+  onNext: () => void
+}
+
+interface ItemDetailsProps {
+  item: Card
+  defaultOpen?: string[] | string | null
+}
 
 /**
  * Show a single lesson card: reveal the answer, then continue to the next step
  * (or finish the lesson on the last step).
- *
- * @param {{ item: object, isLast: boolean, onNext: Function }} props
- *   The card item, whether this is the last step, and the next-step callback.
  */
-export default function LessonCard({ item, isLast, onNext }) {
+export default function LessonCard({ item, isLast, onNext }: LessonCardProps) {
   const [revealed, setRevealed] = useState(false)
   const isMeaning = item.question_type === 'meaning'
   const label = isMeaning ? 'Vocabulary Meaning' : 'Vocabulary Reading'
@@ -27,7 +36,7 @@ export default function LessonCard({ item, isLast, onNext }) {
 
   // Enter acts like "Reveal", then like "Continue"/"Finish Lesson".
   useEffect(() => {
-    const handler = event => {
+    const handler = (event: KeyboardEvent) => {
       if (!isShortcut(event, SHORTCUTS.reveal)) {
         return
       }
@@ -39,7 +48,7 @@ export default function LessonCard({ item, isLast, onNext }) {
   }, [advance])
 
   useEffect(() => {
-    const handler = event => {
+    const handler = (event: KeyboardEvent) => {
       if (!isShortcut(event, SHORTCUTS.playAudio)) {
         return
       }
@@ -84,20 +93,17 @@ export default function LessonCard({ item, isLast, onNext }) {
 /**
  * Render the collapsible "Meaning" and "Reading" detail panels for an item, and
  * sync their open state (both expandable via the shortcut).
- *
- * @param {{ item: object, defaultOpen?: string[]|string|null }} props
- *   The card item and which panels start open.
  */
-export function ItemDetails({ item, defaultOpen = null }) {
+export function ItemDetails({ item, defaultOpen = null }: ItemDetailsProps) {
   const initial = useMemo(() => {
     const panels = Array.isArray(defaultOpen) ? defaultOpen : defaultOpen ? [defaultOpen] : []
     return new Set(panels)
   }, [defaultOpen])
-  const [open, setOpen] = useState(initial)
+  const [open, setOpen] = useState<Set<string>>(initial)
 
   // Press the expand shortcut to open all available tabs (Meaning + Reading).
   useEffect(() => {
-    const handler = event => {
+    const handler = (event: KeyboardEvent) => {
       if (!isShortcut(event, SHORTCUTS.expandDetails)) {
         return
       }
@@ -107,7 +113,7 @@ export function ItemDetails({ item, defaultOpen = null }) {
     return () => window.removeEventListener('keydown', handler)
   }, [item])
 
-  const toggle = panel => {
+  const toggle = (panel: string) => {
     setOpen(previous => {
       const next = new Set(previous)
       if (next.has(panel)) {

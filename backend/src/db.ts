@@ -1,11 +1,45 @@
-'use strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import Database from 'better-sqlite3'
+import type {
+  DatasetConfig,
+  DatasetItem,
+  DatasetSummary,
+  DatasetsResponse,
+  ItemRow,
+  ItemSeedRow,
+  ItemType,
+  ScheduleResult,
+  SrsStage,
+  StageSummary,
+} from '@shared/types'
 
-const path = require('path')
-const fs = require('fs')
-const Database = require('better-sqlite3')
+type DB = Database.Database
 
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data')
-const DB_PATH = process.env.SIMPLE_SRS_DB || path.join(DATA_DIR, 'simple_srs.sqlite')
+interface DatasetAggregate {
+  dataset: string
+  total: number
+  new: number
+  burned: number
+  due: number
+  [key: string]: string | number
+}
+
+interface AddVocabOptions {
+  characters: string
+  meaning?: string
+  readings?: string[]
+  level?: number
+  audio?: string | null
+  dataset?: string
+}
+
+const DATA_DIR = process.env.DATA_DIR || path.join(import.meta.dirname, '..', 'data')
+
+/** Resolve the SQLite path lazily so tests can point SIMPLE_SRS_DB at a temp file. */
+function dbPath(): string {
+  return process.env.SIMPLE_SRS_DB || path.join(DATA_DIR, 'simple_srs.sqlite')
+}
 
 /**
  * SRS stages. Index == srs_stage.
@@ -15,7 +49,7 @@ const DB_PATH = process.env.SIMPLE_SRS_DB || path.join(DATA_DIR, 'simple_srs.sql
 const HOUR = 60 * 60 * 1000
 const DAY = 24 * HOUR
 
-const STAGES = [
+const STAGES: SrsStage[] = [
   { name: 'Apprentice I', interval: 1 * HOUR },
   { name: 'Apprentice II', interval: 4 * HOUR },
   { name: 'Apprentice III', interval: 8 * HOUR },
@@ -26,21 +60,19 @@ const STAGES = [
   { name: 'Enlightened', interval: 20 * DAY },
 ]
 
-const BURNED_STAGE = STAGES.length // 8
+const BURNED_STAGE = STAGES.length
 const RE_AGAIN_DELAY = 10 * 60 * 1000 // 10 min after a miss
 
-const TYPE_CHARACTER = 'character'
-const TYPE_VOCAB = 'vocabulary'
+const TYPE_CHARACTER: ItemType = 'character'
+const TYPE_VOCAB: ItemType = 'vocabulary'
 
 // Rows per multi-row INSERT; kept under SQLite's 32766 bound-parameter limit.
 const BULK_INSERT_CHUNK = 500
 
 /**
  * Create the `items` and `reviews` tables and their indexes (idempotent).
- *
- * @param {import('better-sqlite3').Database} db Open database connection.
  */
-function createSchema(db) {
+function createSchema(db: DB): void {
   db.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA foreign_keys = ON;
@@ -85,16 +117,13 @@ const DATASETS_JSON = path.join(DATA_DIR, 'datasets.json')
 /**
  * Read the dataset registry from data/datasets.json. If it is missing or
  * unreadable there are no datasets, so the database stays empty.
- *
- * @returns {Array<{id: string, file: string, mode: string, type: string}>}
- *   The configured datasets.
  */
-function listDatasets() {
+function listDatasets(): DatasetConfig[] {
   if (!fs.existsSync(DATASETS_JSON)) {
     return []
   }
   try {
-    return JSON.parse(fs.readFileSync(DATASETS_JSON, 'utf8'))
+    return JSON.parse(fs.readFileSync(DATASETS_JSON, 'utf8')) as DatasetConfig[]
   } catch (_) {
     return []
   }
@@ -103,14 +132,8 @@ function listDatasets() {
 /**
  * Insert many item rows with a single multi-row INSERT per chunk, so the number
  * of statements is independent of the batch size. Safe to call inside a transaction.
- *
- * @param {import('better-sqlite3').Database} db Open database connection.
- * @param {Array<object>} rows Item-shaped rows (dataset, type, level,
- *   characters, readings, meaning, audio, srs_stage, available_at, created_at).
- * @param {number} now Epoch ms used to fill an omitted `created_at`.
- * @returns {number} The number of rows inserted.
  */
-function bulkInsertItems(db, rows, now = Date.now()) {
+function bulkInsertItems(db: DB, rows: ItemSeedRow[], now = Date.now()): number {
   const columns =
     'dataset, type, level, characters, readings, meaning, audio, srs_stage, available_at, created_at'
   let inserted = 0
@@ -118,7 +141,7 @@ function bulkInsertItems(db, rows, now = Date.now()) {
     const chunk = rows.slice(start, start + BULK_INSERT_CHUNK)
     const placeholders = chunk.map(() => '(?,?,?,?,?,?,?,?,?,?)').join(', ')
     const stmt = db.prepare(`INSERT INTO items (${columns}) VALUES ${placeholders}`)
-    const params = []
+    const params: unknown[] = []
     for (const row of chunk) {
       params.push(
         row.dataset,
@@ -142,13 +165,10 @@ function bulkInsertItems(db, rows, now = Date.now()) {
 /**
  * Insert the contents of each dataset JSON file into `items`, skipping any
  * dataset that is already present. New items start as unlearned (srs_stage -1).
- *
- * @param {import('better-sqlite3').Database} db Open database connection.
- * @returns {{ inserted: number }} How many rows were inserted.
  */
-function seed(db) {
+function seed(db: DB): { inserted: number } {
   const now = Date.now()
-  const rows = []
+  const rows: ItemSeedRow[] = []
 
   for (const dataset of listDatasets()) {
     const file = path.join(DATA_DIR, dataset.file)
@@ -157,12 +177,12 @@ function seed(db) {
     }
     const existing = db
       .prepare('SELECT COUNT(*) AS n FROM items WHERE dataset = ?')
-      .get(dataset.id).n
-    if (existing > 0) {
+      .get(dataset.id) as { n: number }
+    if (existing.n > 0) {
       continue
     }
 
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'))
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as DatasetItem[]
     for (const item of parsed) {
       rows.push({
         dataset: dataset.id,
@@ -185,17 +205,15 @@ function seed(db) {
 
 /**
  * Update an item's SRS stage and next review time based on the answer.
- *
- * @param {import('better-sqlite3').Database} db Open database connection.
- * @param {{ id: number, srs_stage: number }} item The item being reviewed.
- * @param {boolean} correct Whether the answer was correct.
- * @returns {{stage: number, stageName: string, availableAt: number|null, burned: boolean}}
- *   The resulting stage and schedule.
  */
-function scheduleAfterAnswer(db, item, correct) {
+function scheduleAfterAnswer(
+  db: DB,
+  item: { id: number; srs_stage: number },
+  correct: boolean
+): ScheduleResult {
   const now = Date.now()
-  let stage
-  let availableAt
+  let stage: number
+  let availableAt: number | null
 
   if (!correct) {
     stage = 0
@@ -227,15 +245,8 @@ function scheduleAfterAnswer(db, item, correct) {
  * 'srs'; practice operates on a 'practice' dataset (never touches srs_stage).
  */
 
-/**
- * Return items that are currently due for review.
- *
- * @param {import('better-sqlite3').Database} db Open database connection.
- * @param {number} limit Maximum number of items.
- * @param {string} dataset Dataset id to scope to.
- * @returns {Array} Due items.
- */
-function dueItems(db, limit, dataset) {
+/** Return items that are currently due for review. */
+function dueItems(db: DB, limit: number, dataset: string): ItemRow[] {
   return db
     .prepare(
       `
@@ -249,18 +260,11 @@ function dueItems(db, limit, dataset) {
     LIMIT ?
   `
     )
-    .all(dataset, BURNED_STAGE, Date.now(), limit)
+    .all(dataset, BURNED_STAGE, Date.now(), limit) as ItemRow[]
 }
 
-/**
- * Return the next, not-yet-learned items for a lesson.
- *
- * @param {import('better-sqlite3').Database} db Open database connection.
- * @param {number} limit Maximum number of items.
- * @param {string} dataset Dataset id to scope to.
- * @returns {Array} New (unlearned) items.
- */
-function newItems(db, limit, dataset) {
+/** Return the next, not-yet-learned items for a lesson. */
+function newItems(db: DB, limit: number, dataset: string): ItemRow[] {
   return db
     .prepare(
       `
@@ -271,18 +275,11 @@ function newItems(db, limit, dataset) {
     LIMIT ?
   `
     )
-    .all(dataset, limit)
+    .all(dataset, limit) as ItemRow[]
 }
 
-/**
- * Return every item in a dataset (used by practice mode, which can be any
- * dataset, not just the alphabet).
- *
- * @param {import('better-sqlite3').Database} db Open database connection.
- * @param {string} dataset Dataset id to scope to.
- * @returns {Array} All items in the dataset.
- */
-function practiceItems(db, dataset) {
+/** Return every item in a dataset (used by practice mode). */
+function practiceItems(db: DB, dataset: string): ItemRow[] {
   return db
     .prepare(
       `
@@ -291,20 +288,14 @@ function practiceItems(db, dataset) {
     ORDER BY id ASC
   `
     )
-    .all(dataset)
+    .all(dataset) as ItemRow[]
 }
 
 /**
  * Build dashboard summaries for every configured dataset. SRS datasets also
  * carry new/learning/due/burned counts and a per-stage breakdown.
- *
- * A single GROUP BY aggregate computes every bucket for all datasets in one round-trip.
- * The per-dataset loop only slices the already-computed row.
- *
- * @param {import('better-sqlite3').Database} db Open database connection.
- * @returns {Array<object>} A summary object per dataset.
  */
-function datasets(db) {
+function datasets(db: DB): DatasetSummary[] {
   const now = Date.now()
   const registered = listDatasets()
   if (registered.length === 0) {
@@ -316,9 +307,10 @@ function datasets(db) {
   ).join(',\n        ')
 
   const aggregates = new Map(
-    db
-      .prepare(
-        `
+    (
+      db
+        .prepare(
+          `
       SELECT
         dataset,
         count(*) AS total,
@@ -329,15 +321,15 @@ function datasets(db) {
       FROM items
       GROUP BY dataset
     `
-      )
-      .all(now)
-      .map(row => [row.dataset, row])
+        )
+        .all(now) as DatasetAggregate[]
+    ).map(row => [row.dataset, row] as const)
   )
 
   return registered.map(dataset => {
     const row = aggregates.get(dataset.id)
     const total = row ? row.total : 0
-    const summary = { ...dataset, total }
+    const summary = { ...dataset, total } as DatasetSummary
     if (dataset.mode !== 'srs') {
       return summary
     }
@@ -348,24 +340,20 @@ function datasets(db) {
     summary.burned = burned
     summary.learning = total - newCount - burned
     summary.due = row ? row.due : 0
-    summary.stages = STAGES.map((stage, index) => ({
+    summary.stages = STAGES.map((stage, index): StageSummary => ({
       stage: index,
       name: stage.name,
-      count: row ? row[`stage_${index}`] : 0,
+      count: row ? Number(row[`stage_${index}`]) : 0,
     }))
     return summary
   })
 }
 
-/**
- * Insert a single vocabulary item and return its id.
- *
- * @param {import('better-sqlite3').Database} db Open database connection.
- * @param {{characters: string, meaning?: string, readings?: string[], level?: number, audio?: string, dataset?: string}} options
- *   Item fields.
- * @returns {number} The new row's id.
- */
-function addVocab(db, { characters, meaning, readings, level = 1, audio = null, dataset }) {
+/** Insert a single vocabulary item and return its id. */
+function addVocab(
+  db: DB,
+  { characters, meaning, readings, level = 1, audio = null, dataset }: AddVocabOptions
+): number {
   const info = db
     .prepare(
       `
@@ -383,21 +371,16 @@ function addVocab(db, { characters, meaning, readings, level = 1, audio = null, 
       audio || null,
       Date.now()
     )
-  return info.lastInsertRowid
+  return Number(info.lastInsertRowid)
 }
 
 /**
  * Replace all vocabulary rows (and their reviews) with the given list, clearing
  * any existing word SRS progress. Used for bulk imports.
- *
- * @param {import('better-sqlite3').Database} db Open database connection.
- * @param {Array<object>} words The new vocabulary items.
- * @param {string} dataset Dataset id to replace.
- * @returns {number} The number of rows inserted.
  */
-function replaceVocab(db, words, dataset) {
+function replaceVocab(db: DB, words: DatasetItem[], dataset: string): number {
   const now = Date.now()
-  const rows = words.map(word => ({
+  const rows: ItemSeedRow[] = words.map(word => ({
     dataset,
     type: TYPE_VOCAB,
     level: word.level || 1,
@@ -422,13 +405,8 @@ function replaceVocab(db, words, dataset) {
   return words.length
 }
 
-/**
- * Return the full stats payload (per-dataset summaries) for the dashboard.
- *
- * @param {import('better-sqlite3').Database} db Open database connection.
- * @returns {{datasets: Array<object>}} The stats.
- */
-function stats(db) {
+/** Return the full stats payload (per-dataset summaries) for the dashboard. */
+function stats(db: DB): DatasetsResponse {
   return { datasets: datasets(db) }
 }
 
@@ -436,14 +414,12 @@ function stats(db) {
  * Open (creating if needed) the database, apply schema + migrations and seed the
  * configured datasets. Mutations from old schemas are applied so a pre-existing
  * file keeps working.
- *
- * @returns {import('better-sqlite3').Database} The open connection.
  */
-function open() {
+function open(): DB {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true })
   }
-  const db = new Database(DB_PATH)
+  const db = new Database(dbPath())
   db.pragma('journal_mode = WAL')
   createSchema(db)
 
@@ -455,10 +431,8 @@ function open() {
 /**
  * Add the `audio` and `dataset` columns when opening a database created by an
  * older schema version, backfilling the dataset from the item type.
- *
- * @param {import('better-sqlite3').Database} db Open database connection.
  */
-function migrateColumns(db) {
+function migrateColumns(db: DB): void {
   if (!hasColumn(db, 'audio')) {
     db.exec('ALTER TABLE items ADD COLUMN audio TEXT')
   }
@@ -467,7 +441,7 @@ function migrateColumns(db) {
     db.exec('ALTER TABLE items ADD COLUMN dataset TEXT')
     // Backfill the dataset from each row's type using the configured registry
     // (no hard-coded dataset ids).
-    const typeToDataset = new Map()
+    const typeToDataset = new Map<ItemType, string>()
     for (const dataset of listDatasets()) {
       if (!typeToDataset.has(dataset.type)) {
         typeToDataset.set(dataset.type, dataset.id)
@@ -480,18 +454,12 @@ function migrateColumns(db) {
   }
 }
 
-/**
- * Whether the `items` table already has the given column.
- *
- * @param {import('better-sqlite3').Database} db Open database connection.
- * @param {string} name Column name.
- * @returns {boolean} Whether the column exists.
- */
-function hasColumn(db, name) {
+/** Whether the `items` table already has the given column. */
+function hasColumn(db: DB, name: string): boolean {
   return !!db.prepare("SELECT 1 FROM pragma_table_info('items') WHERE name = ?").get(name)
 }
 
-module.exports = {
+export {
   open,
   STAGES,
   BURNED_STAGE,

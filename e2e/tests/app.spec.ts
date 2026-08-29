@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import type { Page } from '@playwright/test'
 
 /**
  * The app mutates its SQLite DB as tests run, and the flows build on each other
@@ -6,26 +7,15 @@ import { test, expect } from '@playwright/test'
  */
 test.describe.configure({ mode: 'serial' })
 
-/**
- * Fetch a JSON endpoint and assert the request succeeded.
- *
- * @param {import('@playwright/test').Page} page The page (uses its request API).
- * @param {string} endpoint The endpoint path.
- * @returns {Promise<any>} The parsed JSON body.
- */
-async function getJson(page, endpoint) {
+/** Fetch a JSON endpoint and assert the request succeeded. */
+async function getJson<T>(page: Page, endpoint: string): Promise<T> {
   const response = await page.request.get(endpoint)
   expect(response.ok(), `GET ${endpoint} failed`).toBeTruthy()
-  return response.json()
+  return (await response.json()) as T
 }
 
-/**
- * Walk a lesson to completion: reveal each card, then continue until the lesson
- * finishes.
- *
- * @param {import('@playwright/test').Page} page The page.
- */
-async function completeLesson(page) {
+/** Walk a lesson to completion: reveal each card, then continue until it finishes. */
+async function completeLesson(page: Page): Promise<void> {
   const reveal = page.getByRole('button', { name: 'Reveal' })
   await expect(reveal).toBeVisible()
   for (let iteration = 0; iteration < 40; iteration++) {
@@ -57,21 +47,28 @@ test('dashboard lists each dataset as its own card', async ({ page }) => {
   await expect(page.getByRole('button', { name: /Start Lesson/ })).toBeVisible()
 
   // Dataset stats from the API line up with the UI
-  const alpha = await getJson(page, '/api/practice/items?dataset=hangul')
+  const alpha = await getJson<{ items: { length: number } }>(
+    page,
+    '/api/practice/items?dataset=hangul'
+  )
   expect(alpha.items.length).toBe(3)
-  const { datasets } = await getJson(page, '/api/datasets')
+  const { datasets } = await getJson<{
+    datasets: Array<{ id: string; total: number; mode: string }>
+  }>(page, '/api/datasets')
   expect(datasets.length).toBe(2)
   const words = datasets.find(d => d.id === 'words')
-  expect(words.total).toBeGreaterThan(0)
+  expect(words!.total).toBeGreaterThan(0)
 
   // Card labels/badge/description are surfaced from the dataset metadata
   await expect(page.locator('.mode-card .badge').first()).toHaveText('Practice')
   await expect(page.locator('.mode-card').first()).toContainText('Grind for as long as you like.')
-  const { datasets: ui } = await getJson(page, '/api/datasets')
+  const { datasets: ui } = await getJson<{
+    datasets: Array<{ id: string; mode: string }>
+  }>(page, '/api/datasets')
   const compacts = page.locator('.stat.compact .lbl')
   await expect(compacts.nth(0)).toHaveText('items')
   await expect(compacts.nth(1)).toHaveText('items')
-  expect(ui.find(d => d.id === 'words').mode).toBe('srs')
+  expect(ui.find(d => d.id === 'words')!.mode).toBe('srs')
 })
 
 test('renders a card purely from datasets.json metadata', async ({ page }) => {
@@ -156,7 +153,9 @@ test('theme: auto-detects OS preference and toggles', async ({ page }) => {
 
 test('alphabet practice: grading, tally, input clears, Enter advances, stop', async ({ page }) => {
   await page.goto('/')
-  const items = (await getJson(page, '/api/practice/items?dataset=hangul')).items
+  const { items } = await getJson<{
+    items: Array<{ characters: string; readings: string[] }>
+  }>(page, '/api/practice/items?dataset=hangul')
   const readingsByChar = Object.fromEntries(items.map(i => [i.characters, i.readings]))
 
   await page
@@ -166,7 +165,7 @@ test('alphabet practice: grading, tally, input clears, Enter advances, stop', as
 
   await expect(page.locator('.stat-chip').first()).toHaveText('#0')
 
-  const firstChar = (await page.locator('.banner-char').textContent()).trim()
+  const firstChar = (await page.locator('.banner-char').textContent())!.trim()
   expect(readingsByChar[firstChar]).toBeTruthy()
 
   // Audio lives in the Reading tab, which only appears once the card is answered
@@ -193,7 +192,7 @@ test('alphabet practice: grading, tally, input clears, Enter advances, stop', as
   await page.locator('.banner').click() // move focus off the card
   await page.keyboard.press('Enter')
   await expect(page.locator('.answer-input')).toHaveValue('')
-  const secondChar = (await page.locator('.banner-char').textContent()).trim()
+  const secondChar = (await page.locator('.banner-char').textContent())!.trim()
   expect(secondChar.length).toBeGreaterThan(0)
 
   // Wrong answer -> red result, miss tallied, streak resets
@@ -218,7 +217,10 @@ test('alphabet practice: grading, tally, input clears, Enter advances, stop', as
 
 test('word lesson: pressing "p" plays the word audio after reveal', async ({ page }) => {
   await page.goto('/')
-  const lesson = await getJson(page, '/api/lesson/start?dataset=words')
+  const lesson = await getJson<{ items: Array<{ audio: string | null }> }>(
+    page,
+    '/api/lesson/start?dataset=words'
+  )
   expect(lesson.items.length).toBeGreaterThan(0)
   if (!lesson.items[0].audio) {
     return // nothing to verify if the word has no audio
@@ -236,7 +238,10 @@ test('word lesson: pressing "p" plays the word audio after reveal', async ({ pag
 
 test('word lesson walks meaning + reading steps and completes', async ({ page }) => {
   await page.goto('/')
-  const lesson = await getJson(page, '/api/lesson/start?dataset=words')
+  const lesson = await getJson<{ items: Array<{ meaning: string | null }> }>(
+    page,
+    '/api/lesson/start?dataset=words'
+  )
   expect(lesson.items.length).toBeGreaterThan(0)
   const expectedSteps = lesson.items.reduce((n, it) => n + (it.meaning ? 1 : 0) + 1, 0)
 
@@ -248,11 +253,13 @@ test('word lesson walks meaning + reading steps and completes', async ({ page })
 
   // Back on the dashboard, SRS stats moved (some words are now learning)
   await expect(page.getByRole('button', { name: /Start Lesson/ })).toBeVisible()
-  const { datasets } = await getJson(page, '/api/datasets')
+  const { datasets } = await getJson<{
+    datasets: Array<{ id: string; learning: number }>
+  }>(page, '/api/datasets')
   const words = datasets.find(d => d.id === 'words')
-  expect(words.learning).toBeGreaterThan(0)
+  expect(words!.learning).toBeGreaterThan(0)
   // the number of lesson steps we walked matches the words we learned
-  expect(words.learning).toBeGreaterThanOrEqual(expectedSteps / 2)
+  expect(words!.learning).toBeGreaterThanOrEqual(expectedSteps / 2)
 })
 
 test('word review: grading by meaning/reading, Enter to continue', async ({ page }) => {
@@ -267,7 +274,9 @@ test('word review: grading by meaning/reading, Enter to continue', async ({ page
   // the refresh or the Loading state.
   await expect(page.getByRole('button', { name: /Start Review/ })).toBeEnabled()
 
-  const due = (await getJson(page, '/api/review/start?dataset=words')).due
+  const { due } = await getJson<{
+    due: Array<{ characters: string; meaning: string; readings: string[]; audio: string | null }>
+  }>(page, '/api/review/start?dataset=words')
   expect(due.length).toBeGreaterThan(0)
 
   await page.getByRole('button', { name: /Start Review/ }).click()
@@ -275,13 +284,13 @@ test('word review: grading by meaning/reading, Enter to continue', async ({ page
   // Read what's actually shown (the queue is shuffled), then find its answer.
   const subtitle = await page.locator('.subtitle-bar').textContent()
   expect(subtitle).toMatch(/Vocabulary (Meaning|Reading)/)
-  const displayedChar = (await page.locator('.banner-char').textContent()).trim()
+  const displayedChar = (await page.locator('.banner-char').textContent())!.trim()
   const item = due.find(d => d.characters === displayedChar)
   expect(item).toBeTruthy()
 
   // Answer as prompted (read from the API data)
-  const isMeaning = /Meaning/.test(subtitle)
-  const answer = isMeaning ? item.meaning : item.readings[0]
+  const isMeaning = /Meaning/.test(subtitle!)
+  const answer = isMeaning ? item!.meaning : item!.readings[0]
   await page.locator('.answer-input').fill(answer)
   await page.getByRole('button', { name: 'Enter' }).click()
   await expect(page.locator('.result-bar')).toHaveClass(/green/)
@@ -292,7 +301,7 @@ test('word review: grading by meaning/reading, Enter to continue', async ({ page
   await expect(page.locator('.detail-row.open')).toHaveCount(2)
 
   // Pressing "p" plays the word audio (only words that have audio).
-  if (item.audio) {
+  if (item!.audio) {
     const pAudioPromise = page.waitForResponse(res =>
       /\/static\/audio\/korean\/word\/.+\.mp3$/.test(res.url())
     )

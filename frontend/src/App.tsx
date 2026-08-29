@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
-import Dashboard from './components/Dashboard.jsx'
-import Session from './components/Session.jsx'
-import Practice from './components/Practice.jsx'
-import { getDatasets } from './api.js'
+import Dashboard from './components/Dashboard'
+import Session from './components/Session'
+import Practice from './components/Practice'
+import { getDatasets } from './api'
+import type { DatasetSummary, SessionMode, Theme } from '@shared/types'
+
+type View = 'dashboard' | 'session' | 'practice'
 
 const THEME_KEY = 'simplesrs-theme'
 
-/**
- * Resolve the initial theme from the OS color-scheme preference.
- *
- * @returns {'dark'|'light'} The preferred theme.
- */
-const systemTheme = () =>
+/** Resolve the initial theme from the OS color-scheme preference. */
+const systemTheme = (): Theme =>
   window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 
 /**
@@ -19,14 +18,14 @@ const systemTheme = () =>
  * theme, and the app-level state shared across the screens.
  */
 export default function App() {
-  const [datasets, setDatasets] = useState(null)
-  const [view, setView] = useState('dashboard') // 'dashboard' | 'session' | 'practice'
-  const [sessionMode, setSessionMode] = useState('review')
+  const [datasets, setDatasets] = useState<DatasetSummary[] | null>(null)
+  const [view, setView] = useState<View>('dashboard')
+  const [sessionMode, setSessionMode] = useState<SessionMode>('review')
   const [sessionKey, setSessionKey] = useState(0)
-  const [currentDataset, setCurrentDataset] = useState(null)
+  const [currentDataset, setCurrentDataset] = useState<string | null>(null)
   const [error, setError] = useState('')
   // Resolve the initial theme: saved choice, else the OS preference.
-  const [theme, setTheme] = useState(() => {
+  const [theme, setTheme] = useState<Theme>(() => {
     const saved = window.localStorage.getItem(THEME_KEY)
     return saved === 'dark' || saved === 'light' ? saved : systemTheme()
   })
@@ -37,7 +36,7 @@ export default function App() {
       return
     }
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = event => setTheme(event.matches ? 'dark' : 'light')
+    const onChange = (event: MediaQueryListEvent) => setTheme(event.matches ? 'dark' : 'light')
     mediaQuery.addEventListener('change', onChange)
     return () => mediaQuery.removeEventListener('change', onChange)
   }, [])
@@ -47,7 +46,7 @@ export default function App() {
   }, [theme])
 
   const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark'
+    const next: Theme = theme === 'dark' ? 'light' : 'dark'
     window.localStorage.setItem(THEME_KEY, next)
     setTheme(next)
   }
@@ -57,7 +56,7 @@ export default function App() {
       const { datasets } = await getDatasets()
       setDatasets(datasets)
     } catch (error) {
-      setError(error.message)
+      setError((error as Error).message)
     }
   }, [])
 
@@ -65,14 +64,14 @@ export default function App() {
     refresh()
   }, [refresh])
 
-  const openSession = useCallback((dataset, mode) => {
+  const openSession = useCallback((dataset: string, mode: SessionMode) => {
     setCurrentDataset(dataset)
     setSessionMode(mode)
     setSessionKey(key => key + 1)
     setView('session')
   }, [])
 
-  const openPractice = useCallback(dataset => {
+  const openPractice = useCallback((dataset: string) => {
     setCurrentDataset(dataset)
     setView('practice')
   }, [])
@@ -112,12 +111,14 @@ export default function App() {
         {view === 'session' && (
           <Session
             key={sessionKey}
-            dataset={currentDataset}
+            dataset={currentDataset ?? ''}
             mode={sessionMode}
             onDone={backToDashboard}
           />
         )}
-        {view === 'practice' && <Practice dataset={currentDataset} onStop={backToDashboard} />}
+        {view === 'practice' && (
+          <Practice dataset={currentDataset ?? ''} onStop={backToDashboard} />
+        )}
       </main>
 
       {error && (

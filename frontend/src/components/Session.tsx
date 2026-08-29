@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import LessonCard from './LessonCard.jsx'
-import ReviewCard from './ReviewCard.jsx'
-import { startLesson, startReview, completeLesson } from '../api.js'
+import LessonCard from './LessonCard'
+import ReviewCard from './ReviewCard'
+import { startLesson, startReview, completeLesson } from '../api'
+import type { Card, ReviewCard as ReviewCardType, SessionMode } from '@shared/types'
 
-/**
- * Return a new array with the items randomly shuffled.
- *
- * @param {Array} array Items to shuffle.
- * @returns {Array} A shuffled copy.
- */
-function shuffle(array) {
+interface SessionProps {
+  mode: SessionMode
+  dataset: string
+  onDone: () => void
+}
+
+/** Return a new array with the items randomly shuffled. */
+function shuffle<T>(array: T[]): T[] {
   const shuffled = [...array]
   for (let index = shuffled.length - 1; index > 0; index--) {
     const randomIndex = Math.floor(Math.random() * (index + 1))
@@ -23,13 +25,10 @@ function shuffle(array) {
 /**
  * Expand a lesson's items into review steps: a meaning step (if the item has a
  * meaning) followed by a reading step.
- *
- * @param {Array} items The lesson items.
- * @returns {Array} The review step list.
  */
-function lessonSteps(items) {
+function lessonSteps(items: Card[]): ReviewCardType[] {
   return items.flatMap(item => {
-    const reading = { ...item, question_type: 'reading' }
+    const reading: ReviewCardType = { ...item, question_type: 'reading' }
     if (!item.meaning) {
       return [reading]
     }
@@ -40,18 +39,15 @@ function lessonSteps(items) {
 /**
  * Run a lesson or review session over a dataset, stepping through its cards and
  * completing the lesson (if in lesson mode) when the queue is exhausted.
- *
- * @param {{ mode: 'lesson'|'review', dataset: string, onDone: Function }} props
- *   Session configuration and the callback fired when the session ends.
  */
-export default function Session({ mode, dataset, onDone }) {
-  const [queue, setQueue] = useState([])
+export default function Session({ mode, dataset, onDone }: SessionProps) {
+  const [queue, setQueue] = useState<ReviewCardType[]>([])
   const [index, setIndex] = useState(0)
   const [loading, setLoading] = useState(true)
   const doneRef = useRef(false)
 
   const finish = useCallback(
-    async lessonIds => {
+    async (lessonIds?: number[] | null) => {
       if (doneRef.current) {
         return
       }
@@ -73,20 +69,31 @@ export default function Session({ mode, dataset, onDone }) {
     const load = async () => {
       setLoading(true)
       try {
-        const data = mode === 'lesson' ? await startLesson(dataset) : await startReview(dataset)
-        if (cancelled) {
-          return
-        }
         // The backend returns due items in available_at order; shuffle the
         // review queue so the ordering isn't predictable. Lessons keep order.
-        const fetched = mode === 'lesson' ? data.items || [] : data.due || []
-        const items = mode === 'lesson' ? fetched : shuffle(fetched)
-        if (!items.length) {
-          finish()
-          return
+        let steps: ReviewCardType[]
+        if (mode === 'lesson') {
+          const { items } = await startLesson(dataset)
+          if (cancelled) {
+            return
+          }
+          if (!items.length) {
+            finish()
+            return
+          }
+          // A lesson teaches a word in two steps: meaning, then reading.
+          steps = lessonSteps(items)
+        } else {
+          const { due } = await startReview(dataset)
+          if (cancelled) {
+            return
+          }
+          if (!due.length) {
+            finish()
+            return
+          }
+          steps = shuffle(due)
         }
-        // A lesson teaches a word in two steps: meaning, then reading.
-        const steps = mode === 'lesson' ? lessonSteps(items) : items
         setQueue(steps)
         setIndex(0)
       } catch (_) {

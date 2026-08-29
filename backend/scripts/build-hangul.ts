@@ -1,4 +1,6 @@
-'use strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import type { DatasetConfig, DatasetItem } from '@shared/types'
 
 /*
  * Build the complete hangul dataset (data/hangul.json) and download its audio.
@@ -9,10 +11,7 @@
  * skipped with a warning.
  */
 
-const fs = require('fs')
-const path = require('path')
-
-const DATA_DIR = path.join(__dirname, '..', 'data')
+const DATA_DIR = path.join(import.meta.dirname, '..', 'data')
 const DATASET_ID = 'hangul'
 const OUT = path.join(DATA_DIR, `${DATASET_ID}.json`)
 const AUDIO_DIR = path.join(DATA_DIR, 'static', 'audio', 'korean', DATASET_ID)
@@ -21,7 +20,7 @@ const DATASETS_JSON = path.join(DATA_DIR, 'datasets.json')
 const S3 = 'https://90daykoreanaudiobytes.s3-us-west-1.amazonaws.com/'
 
 // Registry entry for this dataset in data/datasets.json.
-const HANGUL_DATASET = {
+const HANGUL_DATASET: DatasetConfig = {
   id: DATASET_ID,
   name: 'Hangul Alphabet',
   file: `${DATASET_ID}.json`,
@@ -32,7 +31,7 @@ const HANGUL_DATASET = {
 }
 
 // [characters, readings, level, audioUrl]
-const CARDS = [
+const CARDS: Array<[string, string[], number, string]> = [
   ['ㄱ', ['g', 'k'], 1, S3 + 'audio-giyeok.mp3'],
   ['ㄴ', ['n'], 1, S3 + 'audio-nieun-new.mp3'],
   ['ㄷ', ['d', 't'], 1, S3 + 'audio-digeut.mp3'],
@@ -75,23 +74,14 @@ const CARDS = [
   ['ㅢ', ['ui'], 4, S3 + 'audio-ui.mp3'],
 ]
 
-/**
- * Stable, unique, ASCII-safe filename per character (e.g. ㄱ -> 3131.mp3).
- *
- * @param {string} char A hangul character.
- * @returns {string} The local MP3 filename.
- */
-function filenameFor(char) {
-  return char.codePointAt(0).toString(16).toUpperCase().padStart(4, '0') + '.mp3'
+/** Stable, unique, ASCII-safe filename per character (e.g. ㄱ -> 3131.mp3). */
+function filenameFor(char: string): string {
+  return char.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0') + '.mp3'
 }
 
-/**
- * Build the hangul.json card entries from the inline CARDS data.
- *
- * @returns {Array<object>} The card objects with their local audio path.
- */
-function buildCards() {
-  return CARDS.map(([characters, readings, level]) => ({
+/** Build the hangul.json card entries from the inline CARDS data. */
+function buildCards(): DatasetItem[] {
+  return CARDS.map(([characters, readings, level]): DatasetItem => ({
     type: 'character',
     characters,
     readings,
@@ -100,14 +90,8 @@ function buildCards() {
   }))
 }
 
-/**
- * Fetch a remote file and write it to disk.
- *
- * @param {string} url The source URL.
- * @param {string} dest Destination path.
- * @returns {Promise<number>} Number of bytes written.
- */
-async function download(url, dest) {
+/** Fetch a remote file and write it to disk. */
+async function download(url: string, dest: string): Promise<number> {
   const response = await fetch(url)
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`)
@@ -117,13 +101,8 @@ async function download(url, dest) {
   return buffer.length
 }
 
-/**
- * Download every card's audio, reporting any that fail (never fatal).
- *
- * @returns {Promise<{downloaded: number, skipped: number, bytes: number}>}
- *   A summary of the download pass.
- */
-async function downloadAudio() {
+/** Download every card's audio, reporting any that fail (never fatal). */
+async function downloadAudio(): Promise<{ downloaded: number; skipped: number; bytes: number }> {
   fs.mkdirSync(AUDIO_DIR, { recursive: true })
   let downloaded = 0
   let skipped = 0
@@ -138,7 +117,7 @@ async function downloadAudio() {
       console.log(`ok ${file}  (${size} bytes)  <- ${characters}`)
     } catch (error) {
       skipped++
-      console.warn(`FAIL ${characters} ${file}: ${error.message}`)
+      console.warn(`FAIL ${characters} ${file}: ${(error as Error).message}`)
     }
   }
 
@@ -148,14 +127,12 @@ async function downloadAudio() {
 /**
  * Create (or update) data/datasets.json, adding or refreshing the given dataset
  * entry while preserving any other configured datasets.
- *
- * @param {object} entry The dataset registry entry to upsert.
  */
-function upsertDataset(entry) {
-  let datasets = []
+function upsertDataset(entry: DatasetConfig): void {
+  let datasets: DatasetConfig[] = []
   if (fs.existsSync(DATASETS_JSON)) {
     try {
-      datasets = JSON.parse(fs.readFileSync(DATASETS_JSON, 'utf8'))
+      datasets = JSON.parse(fs.readFileSync(DATASETS_JSON, 'utf8')) as DatasetConfig[]
     } catch (_) {
       datasets = []
     }
@@ -171,12 +148,9 @@ function upsertDataset(entry) {
   fs.writeFileSync(DATASETS_JSON, JSON.stringify(datasets, null, 2) + '\n')
 }
 
-/**
- * Write data/hangul.json, register the dataset in data/datasets.json, then fetch
- * the audio for each character. The dataset is written regardless of whether the
- * audio downloads succeed.
- */
-async function main() {
+/** Write the dataset, register it, then fetch the audio for each character. */
+async function main(): Promise<void> {
+  fs.mkdirSync(DATA_DIR, { recursive: true })
   const cards = buildCards()
   fs.writeFileSync(OUT, JSON.stringify(cards, null, 2) + '\n')
   console.log(`Wrote ${cards.length} characters to ${OUT}`)

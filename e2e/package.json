@@ -8,13 +8,16 @@
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
-    "install-browsers": "playwright install chromium"
+    "install-browsers": "playwright install chromium",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "@playwright/test": "^1.55.0"
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^24.13.3",
+    "typescript": "^7.0.2"
   }
 }

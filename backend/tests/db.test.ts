@@ -1,29 +1,18 @@
-'use strict'
-
-/**
- * Unit tests for the SQLite-backed data layer (src/db.js). These exercise the
- * query functions that the grading/scheduling tests don't reach (they only
- * cover the pure helpers). We point SIMPLE_SRS_DB at a throwaway temp file so the
- * real data/simple_srs.sqlite is never touched. The db.js functions take a
- * dataset id as an argument (they don't know about specific datasets), so these
- * tests use their own TEST_DATASET to scope queries.
- */
-
-const { describe, it, before, beforeEach, after } = require('node:test')
-const assert = require('node:assert/strict')
-const fs = require('fs')
-const path = require('path')
-const os = require('os')
+import { describe, it, before, beforeEach, after } from 'node:test'
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import os from 'node:os'
+import type { DatasetConfig, DatasetSummary } from '@shared/types'
+import * as dbc from '../src/db'
+import * as grading from '../src/grading'
 
 const TMP_DB = path.join(os.tmpdir(), `srs-db-${process.pid}-${Date.now()}.sqlite`)
 process.env.SIMPLE_SRS_DB = TMP_DB
 
 const TEST_DATASET = 'test-words'
 
-const dbc = require('../src/db.js')
-const grading = require('../src/grading.js')
-
-let db
+let db: ReturnType<typeof dbc.open>
 
 before(() => {
   db = dbc.open() // fresh DB: creates schema + seeds from data/*.json
@@ -57,20 +46,20 @@ describe('parseReadings', () => {
 
 describe('open() seeds the datasets from the datasets.json registry', () => {
   it('seeds every declared dataset (0 if its file is missing)', () => {
-    const datasetsFile = path.join(__dirname, '..', 'data', 'datasets.json')
+    const datasetsFile = path.join(import.meta.dirname, '..', 'data', 'datasets.json')
     if (!fs.existsSync(datasetsFile)) {
       // No registry -> no datasets, so nothing to seed.
       assert.equal(dbc.datasets(db).length, 0)
       return
     }
-    const registry = JSON.parse(fs.readFileSync(datasetsFile, 'utf8'))
+    const registry = JSON.parse(fs.readFileSync(datasetsFile, 'utf8')) as DatasetConfig[]
     const summaries = dbc.datasets(db)
 
     assert.equal(summaries.length, registry.length)
     for (const declared of registry) {
       const summary = summaries.find(s => s.id === declared.id)
       assert.ok(summary, `seeded dataset '${declared.id}'`)
-      const file = path.join(__dirname, '..', 'data', declared.file)
+      const file = path.join(import.meta.dirname, '..', 'data', declared.file)
       const expected = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')).length : 0
       assert.equal(summary.total, expected, `total for '${declared.id}'`)
     }
@@ -78,7 +67,19 @@ describe('open() seeds the datasets from the datasets.json registry', () => {
 })
 
 describe('item queries', () => {
-  function insertRow(row = {}) {
+  function insertRow(
+    row: {
+      dataset?: string
+      type?: string
+      level?: number
+      characters?: string
+      readings?: string[]
+      meaning?: string | null
+      audio?: string | null
+      srs_stage?: number
+      available_at?: number | null
+    } = {}
+  ): number {
     const {
       dataset = TEST_DATASET,
       type = 'vocabulary',
@@ -90,26 +91,28 @@ describe('item queries', () => {
       srs_stage = -1,
       available_at = null,
     } = row
-    return db
-      .prepare(
-        `
+    return Number(
+      db
+        .prepare(
+          `
       INSERT INTO items
         (dataset, type, level, characters, readings, meaning, audio, srs_stage, available_at, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
-      )
-      .run(
-        dataset,
-        type,
-        level,
-        characters,
-        JSON.stringify(readings),
-        meaning,
-        audio,
-        srs_stage,
-        available_at,
-        Date.now()
-      ).lastInsertRowid
+        )
+        .run(
+          dataset,
+          type,
+          level,
+          characters,
+          JSON.stringify(readings),
+          meaning,
+          audio,
+          srs_stage,
+          available_at,
+          Date.now()
+        ).lastInsertRowid
+    )
   }
 
   beforeEach(() => {
@@ -178,7 +181,14 @@ describe('addVocab / replaceVocab / stats', () => {
       level: 2,
       dataset: TEST_DATASET,
     })
-    const row = db.prepare('SELECT * FROM items WHERE id = ?').get(id)
+    const row = db.prepare('SELECT * FROM items WHERE id = ?').get(id) as {
+      characters: string
+      meaning: string | null
+      readings: string
+      type: string
+      dataset: string
+      srs_stage: number
+    }
     assert.equal(row.characters, '가')
     assert.equal(row.meaning, 'To go')
     assert.deepEqual(grading.parseReadings(row), ['ga'])
@@ -204,16 +214,32 @@ describe('addVocab / replaceVocab / stats', () => {
     const n = dbc.replaceVocab(
       db,
       [
-        { characters: '갑', meaning: 'A', readings: ['gap'], level: 1 },
-        { characters: '만', meaning: 'B', readings: ['man'], level: 2 },
+        {
+          type: 'vocabulary',
+          characters: '갑',
+          meaning: 'A',
+          readings: ['gap'],
+          level: 1,
+          audio: null,
+        },
+        {
+          type: 'vocabulary',
+          characters: '만',
+          meaning: 'B',
+          readings: ['man'],
+          level: 2,
+          audio: null,
+        },
       ],
       TEST_DATASET
     )
     assert.equal(n, 2)
-    const remaining = db
-      .prepare('SELECT COUNT(*) AS n FROM items WHERE dataset = ?')
-      .get(TEST_DATASET).n
-    const reviews = db.prepare('SELECT COUNT(*) AS n FROM reviews').get().n
+    const remaining = (
+      db.prepare('SELECT COUNT(*) AS n FROM items WHERE dataset = ?').get(TEST_DATASET) as {
+        n: number
+      }
+    ).n
+    const reviews = (db.prepare('SELECT COUNT(*) AS n FROM reviews').get() as { n: number }).n
     assert.equal(remaining, 2)
     assert.equal(reviews, 0)
   })
@@ -221,18 +247,18 @@ describe('addVocab / replaceVocab / stats', () => {
   it('datasets/stats report new, learning, due and burned counts', () => {
     // datasets()/stats() only report configured (registered) datasets, so scope
     // the assertions to a dataset that actually exists in the registry.
-    const datasetsFile = path.join(__dirname, '..', 'data', 'datasets.json')
+    const datasetsFile = path.join(import.meta.dirname, '..', 'data', 'datasets.json')
     if (!fs.existsSync(datasetsFile)) {
       return
     }
-    const registry = JSON.parse(fs.readFileSync(datasetsFile, 'utf8'))
+    const registry = JSON.parse(fs.readFileSync(datasetsFile, 'utf8')) as DatasetConfig[]
     const target = registry.find(d => d.mode === 'srs') || registry[0]
     if (!target) {
       return
     }
 
     const now = Date.now()
-    const insert = (chars, stage, avail) => {
+    const insert = (chars: string, stage: number, avail: number | null) => {
       db.prepare(
         `
         INSERT INTO items (dataset, type, level, characters, readings, meaning, audio, srs_stage, available_at, created_at)
@@ -248,7 +274,7 @@ describe('addVocab / replaceVocab / stats', () => {
     insert('burn', dbc.BURNED_STAGE, now - 1000) // burned
 
     const s = dbc.stats(db)
-    const words = s.datasets.find(d => d.id === target.id)
+    const words = s.datasets.find(d => d.id === target.id) as DatasetSummary
     assert.ok(words, 'stats include the registered dataset')
     assert.equal(words.total, 6)
     assert.equal(words.new, 2)
@@ -256,9 +282,9 @@ describe('addVocab / replaceVocab / stats', () => {
     assert.equal(words.burned, 1)
     assert.equal(words.due, 2)
     // stage distribution: 0->1, 1->1, 2->1, rest 0
-    const stage0 = words.stages.find(st => st.stage === 0)
-    const stage1 = words.stages.find(st => st.stage === 1)
-    assert.equal(stage0.count, 1)
-    assert.equal(stage1.count, 1)
+    const stage0 = words.stages?.find(st => st.stage === 0)
+    const stage1 = words.stages?.find(st => st.stage === 1)
+    assert.equal(stage0?.count, 1)
+    assert.equal(stage1?.count, 1)
   })
 })

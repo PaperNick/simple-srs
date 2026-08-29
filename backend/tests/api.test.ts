@@ -1,25 +1,25 @@
-'use strict'
+import { describe, it, before, after } from 'node:test'
+import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
+import os from 'node:os'
+import type { ChildProcess } from 'node:child_process'
+import type { DatasetConfig, DatasetSummary, ReviewCard } from '@shared/types'
 
 /**
- * HTTP-level tests for src/server.js against a throwaway DB. We spawn the real
+ * HTTP-level tests for src/server.ts against a throwaway DB. We spawn the real
  * server as a child process (pointing SIMPLE_SRS_DB at a temp file) and hit the
- * public endpoints with fetch. This covers the routes that db.test.js can't.
+ * public endpoints with fetch. This covers the routes that db.test.ts can't.
  * The dataset ids come from the running registry (/api/datasets), so the tests
  * are data-driven and don't hard-code any dataset name.
  */
-
-const { describe, it, before, after } = require('node:test')
-const assert = require('node:assert/strict')
-const { spawn } = require('node:child_process')
-const fs = require('fs')
-const path = require('path')
-const os = require('os')
 
 const TMP_DB = path.join(os.tmpdir(), `srs-api-${process.pid}-${Date.now()}.sqlite`)
 const PORT = 4000 + (process.pid % 1000)
 const BASE = `http://localhost:${PORT}`
 
-const FIXTURE_DATASETS = [
+const FIXTURE_DATASETS: DatasetConfig[] = [
   {
     id: 'hangul',
     name: 'Hangul Alphabet',
@@ -54,7 +54,7 @@ const FIXTURE_WORDS = [
 ]
 
 /** Materialize the fixture dataset into a temp DATA_DIR and return its path. */
-function materializeFixture() {
+function materializeFixture(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'srs-api-data-'))
   fs.writeFileSync(path.join(dir, 'datasets.json'), JSON.stringify(FIXTURE_DATASETS, null, 2))
   fs.writeFileSync(path.join(dir, 'hangul.json'), JSON.stringify(FIXTURE_HANGUL, null, 2))
@@ -64,26 +64,26 @@ function materializeFixture() {
 
 const DATA_DIR = materializeFixture()
 
-let child
+let child: ChildProcess
 let stderr = ''
 
 // Populated once the server is ready.
-let datasets = []
-let srsDataset = null
+let datasets: DatasetSummary[] = []
+let srsDataset: DatasetSummary
 
-function waitForReady(timeoutMs = 30_000) {
+function waitForReady(timeoutMs = 30_000): Promise<void> {
   return new Promise((resolve, reject) => {
-    const onData = buf => {
+    const onData = (buf: Buffer) => {
       if (buf.toString().includes('Simple SRS running')) {
         cleanup()
         resolve()
       }
     }
-    const onExit = code => {
+    const onExit = (code: number | null) => {
       cleanup()
       reject(new Error(`server exited early (${code}):\n${stderr}`))
     }
-    child.stdout.on('data', onData)
+    child.stdout!.on('data', onData)
     child.on('exit', onExit)
     const timer = setTimeout(() => {
       cleanup()
@@ -91,24 +91,28 @@ function waitForReady(timeoutMs = 30_000) {
     }, timeoutMs)
     function cleanup() {
       clearTimeout(timer)
-      child.stdout.off('data', onData)
+      child.stdout!.off('data', onData)
       child.removeListener('exit', onExit)
     }
   })
 }
 
 before(async () => {
-  child = spawn(process.execPath, [path.join(__dirname, '..', 'src', 'server.js')], {
-    env: { ...process.env, SIMPLE_SRS_DB: TMP_DB, BACKEND_PORT: String(PORT), DATA_DIR },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-  child.stderr.on('data', buf => {
+  child = spawn(
+    process.execPath,
+    ['--import', 'tsx', path.join(import.meta.dirname, '..', 'src', 'server.ts')],
+    {
+      env: { ...process.env, SIMPLE_SRS_DB: TMP_DB, BACKEND_PORT: String(PORT), DATA_DIR },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }
+  )
+  child.stderr!.on('data', buf => {
     stderr += buf.toString()
   })
   await waitForReady()
 
   const response = await fetch(`${BASE}/api/datasets`)
-  datasets = (await response.json()).datasets
+  datasets = ((await response.json()) as { datasets: DatasetSummary[] }).datasets
   srsDataset = datasets.find(d => d.mode === 'srs') || datasets[0]
 })
 
@@ -128,12 +132,12 @@ after(() => {
   } catch (_) {}
 })
 
-async function get(pathname) {
+async function get(pathname: string): Promise<{ status: number; body: any }> {
   const res = await fetch(BASE + pathname)
   return { status: res.status, body: await res.json() }
 }
 
-async function post(pathname, payload) {
+async function post(pathname: string, payload: unknown): Promise<{ status: number; body: any }> {
   const res = await fetch(BASE + pathname, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -154,8 +158,11 @@ describe('API - stats & datasets', () => {
     const { status, body } = await get('/api/datasets')
     assert.equal(status, 200)
     assert.ok(Array.isArray(body.datasets))
-    assert.deepEqual(body.datasets.map(d => d.id).sort(), datasets.map(d => d.id).sort())
-    const srs = body.datasets.find(d => d.id === srsDataset.id)
+    assert.deepEqual(
+      body.datasets.map((d: DatasetSummary) => d.id).sort(),
+      datasets.map(d => d.id).sort()
+    )
+    const srs = body.datasets.find((d: DatasetSummary) => d.id === srsDataset.id)
     assert.equal(srs.mode, 'srs')
     assert.ok(srs.total > 0)
     assert.ok(Array.isArray(srs.stages))
@@ -163,7 +170,7 @@ describe('API - stats & datasets', () => {
 })
 
 describe('API - practice (any dataset) and answer grading', () => {
-  let first
+  let first: any
 
   it('GET /api/practice/items?dataset= returns the dataset items', async () => {
     const { status, body } = await get(`/api/practice/items?dataset=${srsDataset.id}`)
@@ -197,7 +204,7 @@ describe('API - practice (any dataset) and answer grading', () => {
 describe('API - vocab, lesson, review flow', () => {
   it('POST /api/vocab adds a new word and bumps totals', async () => {
     const before = await get('/api/stats')
-    const total = before.body.datasets.find(d => d.id === srsDataset.id).total
+    const total = before.body.datasets.find((d: DatasetSummary) => d.id === srsDataset.id).total
     const { status, body } = await post('/api/vocab', {
       characters: '가',
       meaning: 'To go',
@@ -207,7 +214,7 @@ describe('API - vocab, lesson, review flow', () => {
     })
     assert.equal(status, 201)
     assert.ok(body.id > 0)
-    const after = body.stats.datasets.find(d => d.id === srsDataset.id)
+    const after = body.stats.datasets.find((d: DatasetSummary) => d.id === srsDataset.id)
     assert.equal(after.total, total + 1)
   })
 
@@ -226,7 +233,7 @@ describe('API - vocab, lesson, review flow', () => {
     const lesson = await get(`/api/lesson/start?dataset=${srsDataset.id}&limit=5`)
     assert.equal(lesson.status, 200)
     assert.equal(lesson.body.items.length, 5)
-    const ids = lesson.body.items.map(i => i.id)
+    const ids: number[] = lesson.body.items.map((i: any) => i.id)
     for (const it of lesson.body.items) {
       assert.equal(it.type, 'vocabulary')
       assert.ok(it.characters)
@@ -241,7 +248,7 @@ describe('API - vocab, lesson, review flow', () => {
     const review = await get(`/api/review/start?dataset=${srsDataset.id}&limit=20`)
     assert.equal(review.status, 200)
     assert.ok(review.body.due.length >= 5)
-    const first = review.body.due.find(d => ids.includes(d.id))
+    const first: ReviewCard = review.body.due.find((d: ReviewCard) => ids.includes(d.id))
     assert.ok(first)
     assert.notEqual(first.question_type, undefined)
 

@@ -51,7 +51,7 @@ Adjust the proxy target there for a different backend port.
 
 ## Keyboard shortcuts
 
-Keyboard shortcuts are centralized in `src/shortcuts.js` and can be rebound with Vite env vars (only `VITE_`-prefixed vars are exposed to the client).
+Keyboard shortcuts are centralized in `src/shortcuts.ts` and can be rebound with Vite env vars (only `VITE_`-prefixed vars are exposed to the client).
 Put them in `frontend/.env`, `frontend/.env.local`, or pass them on the command line when starting Vite.
 
 | Shortcut            | Default | Env override          |

@@ -1,28 +1,40 @@
 import { useEffect, useRef, useState } from 'react'
-import { reviewAnswer } from '../api.js'
-import { playItemAudio } from '../audio.js'
-import { SHORTCUTS, isShortcut } from '../shortcuts.js'
-import AnswerInput from './AnswerInput.jsx'
-import { ItemDetails } from './LessonCard.jsx'
-import ShortcutHints from './ShortcutHints.jsx'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { reviewAnswer } from '../api'
+import { playItemAudio } from '../audio'
+import { SHORTCUTS, isShortcut } from '../shortcuts'
+import AnswerInput from './AnswerInput'
+import { ItemDetails } from './LessonCard'
+import ShortcutHints from './ShortcutHints'
+import type { Card, ReviewCard as ReviewCardType } from '@shared/types'
+
+interface Result {
+  correct: boolean
+  expected: string
+  item: Card
+}
+
+interface ReviewCardProps {
+  item: ReviewCardType
+  onMissed: () => void
+  onNext: () => void
+}
 
 /**
  * Show a single review card: grade the typed answer, then continue or re-queue
  * the item. Supports meaning and reading prompts.
- *
- * @param {{ item: object, onMissed: Function, onNext: Function }} props
- *   The item being reviewed and callbacks for a miss / moving on.
  */
-export default function ReviewCard({ item, onMissed, onNext }) {
-  const [phase, setPhase] = useState('input') // 'input' | 'result'
-  const [result, setResult] = useState(null)
-  const inputRef = useRef(null)
+export default function ReviewCard({ item, onMissed, onNext }: ReviewCardProps) {
+  const [phase, setPhase] = useState<'input' | 'result'>('input')
+  const [result, setResult] = useState<Result | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const isMeaning = item.question_type === 'meaning'
   const label = isMeaning ? 'Vocabulary Meaning' : 'Vocabulary Reading'
   const placeholder = isMeaning ? 'Type the meaning…' : 'Type the reading…'
-  const expected = cardItem => (isMeaning ? cardItem.meaning : cardItem.readings.join(', '))
+  const expected = (cardItem: Card): string =>
+    isMeaning ? (cardItem.meaning ?? '') : cardItem.readings.join(', ')
 
-  const submit = async value => {
+  const submit = async (value: string) => {
     if (!value || !value.trim()) {
       if (inputRef.current) {
         inputRef.current.focus()
@@ -53,9 +65,9 @@ export default function ReviewCard({ item, onMissed, onNext }) {
     onMissed()
   }
 
-  const onKey = event => {
+  const onKey = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (phase === 'input' && isShortcut(event, SHORTCUTS.submit)) {
-      submit(event.target.value)
+      submit(event.currentTarget.value)
     }
     if (phase === 'result' && isShortcut(event, SHORTCUTS.next)) {
       onNext()
@@ -64,7 +76,7 @@ export default function ReviewCard({ item, onMissed, onNext }) {
 
   // On the result screen the input is disabled, so let SHORTCUTS.next (Enter) elsewhere act as "Continue".
   useEffect(() => {
-    const handler = event => {
+    const handler = (event: KeyboardEvent) => {
       if (!isShortcut(event, SHORTCUTS.next) || phase !== 'result') {
         return
       }
@@ -84,7 +96,7 @@ export default function ReviewCard({ item, onMissed, onNext }) {
 
   // "p" plays the word audio once the card has been answered.
   useEffect(() => {
-    const handler = event => {
+    const handler = (event: KeyboardEvent) => {
       if (!isShortcut(event, SHORTCUTS.playAudio)) {
         return
       }
@@ -108,7 +120,7 @@ export default function ReviewCard({ item, onMissed, onNext }) {
       <div className="subtitle-bar">{label}</div>
 
       {phase === 'result' && (
-        <div className={`result-bar ${correct ? 'green' : 'red'}`}>{result.expected}</div>
+        <div className={`result-bar ${correct ? 'green' : 'red'}`}>{result!.expected}</div>
       )}
 
       <div className="answer-zone">
@@ -119,13 +131,13 @@ export default function ReviewCard({ item, onMissed, onNext }) {
           disabled={phase === 'result'}
           autoFocus
           actionLabel="Enter"
-          onAction={() => submit(inputRef.current.value)}
+          onAction={() => submit(inputRef.current!.value)}
           actionHidden={phase !== 'input'}
         />
       </div>
 
       {phase === 'result' && (
-        <ItemDetails item={result.item} defaultOpen={isMeaning ? 'meaning' : 'reading'} />
+        <ItemDetails item={result!.item} defaultOpen={isMeaning ? 'meaning' : 'reading'} />
       )}
 
       <div className="action-row">

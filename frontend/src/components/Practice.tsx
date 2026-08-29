@@ -1,18 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getPracticeItems, practiceAnswer } from '../api.js'
-import { playItemAudio } from '../audio.js'
-import { SHORTCUTS, isShortcut } from '../shortcuts.js'
-import AnswerInput from './AnswerInput.jsx'
-import { ItemDetails } from './LessonCard.jsx'
-import ShortcutHints from './ShortcutHints.jsx'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { getPracticeItems, practiceAnswer } from '../api'
+import { playItemAudio } from '../audio'
+import { SHORTCUTS, isShortcut } from '../shortcuts'
+import AnswerInput from './AnswerInput'
+import { ItemDetails } from './LessonCard'
+import ShortcutHints from './ShortcutHints'
+import type { Card } from '@shared/types'
 
-/**
- * Return a new array with the items randomly shuffled.
- *
- * @param {Array} array Items to shuffle.
- * @returns {Array} A shuffled copy.
- */
-function shuffle(array) {
+interface Tally {
+  answered: number
+  correct: number
+  wrong: number
+  streak: number
+  best: number
+}
+
+interface PracticeProps {
+  dataset: string
+  onStop: () => void
+}
+
+/** Return a new array with the items randomly shuffled. */
+function shuffle<T>(array: T[]): T[] {
   const shuffled = [...array]
   for (let index = shuffled.length - 1; index > 0; index--) {
     const randomIndex = Math.floor(Math.random() * (index + 1))
@@ -26,21 +36,24 @@ function shuffle(array) {
 /**
  * Run the endless practice session: shuffle the items, grade each
  * reading, keep a running tally and loop forever until the user stops.
- *
- * @param {{ dataset: string, onStop: Function }} props
- *   The practice dataset and callback fired when the user stops.
  */
-export default function Practice({ dataset, onStop }) {
-  const allRef = useRef([]) // full item set
-  const sequenceRef = useRef([]) // endless rotation
+export default function Practice({ dataset, onStop }: PracticeProps) {
+  const allRef = useRef<Card[]>([]) // full item set
+  const sequenceRef = useRef<Card[]>([]) // endless rotation
   const positionRef = useRef(0) // current position in rotation
-  const inputRef = useRef(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const [current, setCurrent] = useState(null)
-  const [phase, setPhase] = useState('input') // 'input' | 'result'
-  const [result, setResult] = useState(null)
+  const [current, setCurrent] = useState<Card | null>(null)
+  const [phase, setPhase] = useState<'input' | 'result'>('input')
+  const [result, setResult] = useState<{ correct: boolean; revealed?: boolean } | null>(null)
   const [value, setValue] = useState('')
-  const [tally, setTally] = useState({ answered: 0, correct: 0, wrong: 0, streak: 0, best: 0 })
+  const [tally, setTally] = useState<Tally>({
+    answered: 0,
+    correct: 0,
+    wrong: 0,
+    streak: 0,
+    best: 0,
+  })
 
   const advance = useCallback(() => {
     positionRef.current += 1
@@ -84,7 +97,7 @@ export default function Practice({ dataset, onStop }) {
   }, [phase])
 
   useEffect(() => {
-    const handler = event => {
+    const handler = (event: KeyboardEvent) => {
       if (!isShortcut(event, SHORTCUTS.playAudio)) {
         return
       }
@@ -108,7 +121,7 @@ export default function Practice({ dataset, onStop }) {
 
     let correct
     try {
-      const response = await practiceAnswer(current.id, input)
+      const response = await practiceAnswer(current!.id, input)
       correct = response.correct
     } catch (_) {
       correct = false
@@ -144,7 +157,7 @@ export default function Practice({ dataset, onStop }) {
     }
   }
 
-  const onKey = event => {
+  const onKey = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (phase === 'input' && isShortcut(event, SHORTCUTS.submit)) {
       submit()
     } else if (phase === 'result' && isShortcut(event, SHORTCUTS.next)) {
@@ -154,7 +167,7 @@ export default function Practice({ dataset, onStop }) {
 
   // On the result screen the input is disabled, so let Enter elsewhere act as "Next".
   useEffect(() => {
-    const handler = event => {
+    const handler = (event: KeyboardEvent) => {
       if (!isShortcut(event, SHORTCUTS.next) || phase !== 'result') {
         return
       }

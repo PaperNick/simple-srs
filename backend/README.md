@@ -36,7 +36,7 @@ Then open http://localhost:3000
 npm run dev
 ```
 
-This auto-reloads (`node --watch`). The API is served on http://localhost:3000
+This auto-reloads (`tsx watch`). The API is served on http://localhost:3000
 
 ### Port & env
 
@@ -123,22 +123,22 @@ A correct answer advances one stage and schedules the next review; a wrong answe
 
 ## Building the Hangul dataset
 
-The Hangul alphabet dataset (`data/hangul.json`) is fully self-contained: the characters, readings, levels, and audio source URLs are defined inline in `scripts/build-hangul.js`.
+The Hangul alphabet dataset (`data/hangul.json`) is fully self-contained: the characters, readings, levels, and audio source URLs are defined inline in `scripts/build-hangul.ts`.
 
 ```bash
 # With the backend stopped
-node scripts/build-hangul.js
+npx tsx scripts/build-hangul.ts
 ```
 
 It writes `data/hangul.json`, registers the `hangul` dataset in `data/datasets.json`, and downloads each character's audio into `data/static/audio/korean/hangul/`. Audio that can't be fetched is skipped with a warning - the dataset is still written and usable.
 
 ## Building the Korean words dataset
 
-The Korean words dataset is built from an Anki deck file (for audio). Download the **Korean 1000 most common words (audio)** deck from https://ankiweb.net/shared/info/408875623, then run `build-korean-words-6000.js` with its path:
+The Korean words dataset is built from an Anki deck file (for audio). Download the **Korean 1000 most common words (audio)** deck from https://ankiweb.net/shared/info/408875623, then run `build-korean-words-6000.ts` with its path:
 
 ```bash
 # With the backend stopped
-node scripts/build-korean-words-6000.js path/to/deck.apkg
+npx tsx scripts/build-korean-words-6000.ts path/to/deck.apkg
 ```
 
 The script downloads (and caches) the TOPIK 6000 CSV, reads the Anki notes (word + `[sound:...mp3]`), enriches each word with meaning + romanization from the CSV by matching the word (`audio = null` for words not in the deck), extracts the audio into `data/static/audio/korean/korean-words-6000/`, and **replaces** the vocabulary in the database (clearing prior word SRS progress).
@@ -147,7 +147,7 @@ The audio path is stored in each item's `audio` column and returned by the API, 
 
 ## Testing
 
-Tests live in [`tests/`](tests) and use Node's built-in test runner (no extra dependencies).
+Tests live in [`tests/`](tests) and use Node's built-in test runner (run through `tsx`).
 They cover the Levenshtein similarity, answer grading (reading + meaning), and the SRS scheduling transitions.
 
 ```bash

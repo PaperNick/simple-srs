@@ -1,14 +1,17 @@
-'use strict'
+import type { GradeResult } from '@shared/types'
 
-/**
- * Parse an item's `readings` JSON column into an array of romanizations.
- *
- * @param {{ readings?: string }} item A database row.
- * @returns {string[]} The readings, or an empty array if unparsable/absent.
- */
-function parseReadings(item) {
+interface ReadingsItem {
+  readings?: string | null
+}
+
+interface GradeItem extends ReadingsItem {
+  meaning?: string | null
+}
+
+/** Parse an item's `readings` JSON column into an array of romanizations. */
+function parseReadings(item: ReadingsItem): string[] {
   try {
-    return JSON.parse(item.readings || '[]')
+    return JSON.parse(item.readings || '[]') as string[]
   } catch (_) {
     return []
   }
@@ -17,11 +20,8 @@ function parseReadings(item) {
 /**
  * Normalize a comparison string: lowercase and strip punctuation/whitespace so
  * typed and expected answers can be compared consistently.
- *
- * @param {string} value The value to normalize.
- * @returns {string} The normalized string.
  */
-function normalize(value) {
+function normalize(value: unknown): string {
   return String(value || '')
     .toLowerCase()
     .replace(/[\s\-'’".,;:!?()\[\]{}]/g, '')
@@ -31,12 +31,8 @@ function normalize(value) {
  * Compute the Levenshtein (edit) distance between two strings: the minimum
  * number of single-character insertions, deletions or substitutions required to
  * transform one into the other.
- *
- * @param {string} left The first string.
- * @param {string} right The second string.
- * @returns {number} The edit distance.
  */
-function levenshtein(left, right) {
+function levenshtein(left: string, right: string): number {
   const leftLength = left.length
   const rightLength = right.length
 
@@ -77,12 +73,8 @@ const SIM_THRESHOLD = 0.8
 /**
  * Return whether a typed answer is close enough (>= SIM_THRESHOLD) to an
  * accepted form, guarding against trivially matching very short strings.
- *
- * @param {string} accepted The expected answer.
- * @param {string} typed The user's answer.
- * @returns {boolean} True when the answer is considered a match.
  */
-function similar(accepted, typed) {
+function similar(accepted: string, typed: string): boolean {
   if (!accepted || !typed) {
     return false
   }
@@ -121,13 +113,11 @@ const STOPWORDS = new Set([
 /**
  * Grade a reading answer for an item. With no input, returns the list of
  * accepted (normalized) readings.
- *
- * @param {string} input The user's typed answer.
- * @param {{ readings?: string }} item A database row.
- * @returns {Array<string>|{accepted: string[], correct: boolean}} The accepted
- *   readings when input is empty, otherwise a correctness result.
  */
-function grade(input, item) {
+function grade(
+  input: string,
+  item: GradeItem
+): string[] | { accepted: string[]; correct: boolean } {
   const answer = normalize(input)
   const readings = parseReadings(item).map(normalize)
 
@@ -146,18 +136,15 @@ function grade(input, item) {
  * can hold multiple senses ("1. to go 2. to leave"), comma/slash lists, or
  * conjunction-separated alternatives ("a thing or an object"). The full string
  * is always kept as an answer too.
- *
- * @param {string} meaning The item's English meaning.
- * @returns {string[]} Distinct acceptable answer strings.
  */
-function meaningAlternatives(meaning) {
+function meaningAlternatives(meaning: string | null | undefined): string[] {
   if (!meaning) {
     return []
   }
 
   const full = String(meaning).trim()
-  const parts = new Set()
-  const add = part => {
+  const parts = new Set<string>()
+  const add = (part: string) => {
     const trimmed = part.trim()
     if (trimmed) {
       parts.add(trimmed)
@@ -172,20 +159,18 @@ function meaningAlternatives(meaning) {
 /**
  * Grade an item for a given question type: 'meaning' compares the English
  * meaning, anything else compares the romanized reading.
- *
- * @param {{ readings?: string, meaning?: string }} item A database row.
- * @param {string} input The user's typed answer.
- * @param {string} questionType 'meaning' | 'reading'.
- * @returns {{correct: boolean, accepted: string[], expectedDisplay: string}}
- *   The result plus the accepted answers and a human-readable expectation.
  */
-function gradeQuestion(item, input, questionType) {
+function gradeQuestion(
+  item: GradeItem,
+  input: string,
+  questionType: 'meaning' | 'reading'
+): GradeResult {
   const answer = normalize(input)
 
   if (questionType === 'meaning') {
     const alternatives = meaningAlternatives(item.meaning)
     const correct = isMeaningMatch(alternatives, answer)
-    return { correct, accepted: alternatives, expectedDisplay: item.meaning }
+    return { correct, accepted: alternatives, expectedDisplay: item.meaning ?? '' }
   }
 
   const readings = parseReadings(item)
@@ -202,12 +187,8 @@ function gradeQuestion(item, input, questionType) {
  * Decide whether an answer is correct for a meaning question. Accepts exact or
  * >=80% similar alternatives, or a partial word contained in an alternative,
  * while rejecting bare stopwords and very short answers.
- *
- * @param {string[]} alternatives Accepted meaning strings.
- * @param {string} answer The normalized user answer.
- * @returns {boolean} True when the answer counts as correct.
  */
-function isMeaningMatch(alternatives, answer) {
+function isMeaningMatch(alternatives: string[], answer: string): boolean {
   if (!answer) {
     return false
   }
@@ -231,7 +212,7 @@ function isMeaningMatch(alternatives, answer) {
   return false
 }
 
-module.exports = {
+export {
   parseReadings,
   normalize,
   levenshtein,

@@ -1,16 +1,10 @@
-/**
- * Unified audio access: each item carries its own `audio` path. Falls back to nothing if the item has no audio.
- */
+import type { Card } from '@shared/types'
 
-let audioElement = null
+/** Unified audio access: each item carries its own `audio` path. */
+let audioElement: HTMLAudioElement | null = null
 
-/**
- * Return the audio source URL for an item, or null when it has none.
- *
- * @param {object|null} item The card item.
- * @returns {string|null} The audio URL.
- */
-export function itemAudioSrc(item) {
+/** Return the audio source URL for an item, or null when it has none. */
+export function itemAudioSrc(item: Card | null): string | null {
   if (!item) {
     return null
   }
@@ -20,11 +14,8 @@ export function itemAudioSrc(item) {
 /**
  * Try to play an item's audio, returning whether playback was started. A single
  * hidden <audio> element is reused so the browser actually loads the file.
- *
- * @param {object|null} item The card item.
- * @returns {boolean} True when playback was attempted.
  */
-export function playItemAudio(item) {
+export function playItemAudio(item: Card | null): boolean {
   const source = itemAudioSrc(item)
   if (!source) {
     return false

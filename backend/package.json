@@ -2,16 +2,25 @@
   "name": "@simple-srs/backend",
   "version": "1.0.0",
   "description": "Simple SRS backend: Express API + SQLite + SRS scheduling.",
-  "main": "src/server.js",
+  "main": "src/server.ts",
+  "type": "module",
   "private": true,
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
-    "test": "node --test \"tests/*.test.js\""
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
+    "test": "tsx --test \"tests/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "adm-zip": "^0.6.0",
     "better-sqlite3": "^13.0.3",
     "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.13.3",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
   }
 }

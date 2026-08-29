@@ -1,4 +1,16 @@
-'use strict'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import AdmZip from 'adm-zip'
+import Database from 'better-sqlite3'
+import * as dbc from '../src/db'
+import type { DatasetConfig, DatasetItem } from '@shared/types'
+
+interface TopikEntry {
+  meaning: string
+  readings: string[]
+  level: number
+}
 
 /*
  * Build a Korean words dataset by merging the TOPIK 6000 CSV (meaning +
@@ -8,24 +20,9 @@
  *
  * Deck: https://ankiweb.net/shared/info/408875623  (provides No | Word | Audio)
  * CSV:  TOPIK 6000 frequency list (word -> romanized + English + level)
- *
- * Output:
- *   - audio files -> backend/data/static/audio/korean/korean-words-6000/NNNN.mp3
- *   - dataset list -> backend/data/korean-words-6000.json
- *   - words upserted into the SQLite DB (clears old vocabulary + its progress)
- *
- * Usage:  node scripts/build-korean-words-6000.js path/to/deck.apkg
- *   The downloaded .apkg path is required as the argument; the TOPIK CSV is
- *   downloaded automatically (and cached in data/). Run with the backend server
- *   stopped so the DB can be written.
  */
 
-const fs = require('fs')
-const os = require('os')
-const path = require('path')
-const AdmZip = require('adm-zip')
-
-const ROOT = path.join(__dirname, '..', '..')
+const ROOT = path.join(import.meta.dirname, '..', '..')
 const DATA_DIR = path.join(ROOT, 'backend', 'data')
 const DATASET_ID = 'korean-words-6000'
 const WORDS_JSON = path.join(DATA_DIR, `${DATASET_ID}.json`)
@@ -39,7 +36,7 @@ const CSV_URL =
 const TOPIK_CSV = path.join(DATA_DIR, 'topik-6000.csv')
 
 // Registry entry for this dataset in data/datasets.json.
-const WORDS_DATASET = {
+const WORDS_DATASET: DatasetConfig = {
   id: DATASET_ID,
   name: 'Korean Words',
   file: `${DATASET_ID}.json`,
@@ -49,16 +46,9 @@ const WORDS_DATASET = {
   description: 'Learn the most common Korean words. Spaced repetition with stages.',
 }
 
-const dbc = require('../src/db')
-
-/**
- * Split a CSV line into its fields, honouring double-quoted cells.
- *
- * @param {string} line A single CSV row.
- * @returns {string[]} The parsed fields.
- */
-function parseLine(line) {
-  const fields = []
+/** Split a CSV line into its fields, honouring double-quoted cells. */
+function parseLine(line: string): string[] {
+  const fields: string[] = []
   let current = ''
   let insideQuotes = false
 
@@ -89,15 +79,9 @@ function parseLine(line) {
   return fields
 }
 
-/**
- * Parse the TOPIK CSV into a map of word -> { meaning, readings, level }.
- *
- * @param {string} csvPath Path to the TOPIK CSV.
- * @returns {Map<string, {meaning: string, readings: string[], level: number}>}
- *   The word metadata keyed by hangul word.
- */
-function parseTopik(csvPath) {
-  const byWord = new Map()
+/** Parse the TOPIK CSV into a map of word -> { meaning, readings, level }. */
+function parseTopik(csvPath: string): Map<string, TopikEntry> {
+  const byWord = new Map<string, TopikEntry>()
   const lines = fs.readFileSync(csvPath, 'utf8').split(/\r?\n/)
 
   for (let index = 1; index < lines.length; index++) {
@@ -128,12 +112,8 @@ function parseTopik(csvPath) {
   return byWord
 }
 
-/**
- * Download the TOPIK CSV (unless already cached) and return its path.
- *
- * @returns {Promise<string>} Path to the locally cached CSV.
- */
-async function ensureTopikCsv() {
+/** Download the TOPIK CSV (unless already cached) and return its path. */
+async function ensureTopikCsv(): Promise<string> {
   if (fs.existsSync(TOPIK_CSV)) {
     return TOPIK_CSV
   }
@@ -147,27 +127,16 @@ async function ensureTopikCsv() {
   return TOPIK_CSV
 }
 
-/**
- * Strip pronunciation annotations (e.g. "[말ː]") and semantic suffixes
- * (e.g. "-dog") from a word, returning its cleaned form.
- *
- * @param {string} word The raw word.
- * @returns {string} The cleaned word.
- */
-function cleanWord(word) {
+/** Strip pronunciation annotations and semantic suffixes from a word. */
+function cleanWord(word: string): string {
   return String(word)
     .replace(/\[[^\]]*\]/g, '')
     .replace(/[-–-].*$/, '')
     .trim()
 }
 
-/**
- * Resolve the deck path from the required CLI argument, exiting with guidance
- * when it's missing.
- *
- * @returns {string} The path to the .apkg deck.
- */
-function resolveDeckPath() {
+/** Resolve the deck path from the required CLI argument. */
+function resolveDeckPath(): string {
   const apkgPath = process.argv[2]
   if (apkgPath && fs.existsSync(apkgPath)) {
     return apkgPath
@@ -176,21 +145,16 @@ function resolveDeckPath() {
   console.error(
     'Download the deck from https://ankiweb.net/shared/info/408875623 and pass its path as an argument, e.g.'
   )
-  console.error('  node scripts/build-korean-words-6000.js path/to/deck.apkg')
+  console.error('  npx tsx scripts/build-korean-words-6000.ts path/to/deck.apkg')
   process.exit(1)
 }
 
-/**
- * Create (or update) data/datasets.json, adding or refreshing the given dataset
- * entry while preserving any other configured datasets.
- *
- * @param {object} entry The dataset registry entry to upsert.
- */
-function upsertDataset(entry) {
-  let datasets = []
+/** Create (or update) data/datasets.json for the given dataset entry. */
+function upsertDataset(entry: DatasetConfig): void {
+  let datasets: DatasetConfig[] = []
   if (fs.existsSync(DATASETS_JSON)) {
     try {
-      datasets = JSON.parse(fs.readFileSync(DATASETS_JSON, 'utf8'))
+      datasets = JSON.parse(fs.readFileSync(DATASETS_JSON, 'utf8')) as DatasetConfig[]
     } catch (_) {
       datasets = []
     }
@@ -206,13 +170,8 @@ function upsertDataset(entry) {
   fs.writeFileSync(DATASETS_JSON, JSON.stringify(datasets, null, 2) + '\n')
 }
 
-/**
- * Unpack an Anki deck, emit its audio plus the derived dataset JSON, register the
- * dataset in datasets.json and replace the DB vocabulary.
- *
- * @param {string} apkgPath Path to the .apkg deck.
- */
-async function buildFromDeck(apkgPath) {
+/** Unpack an Anki deck, emit audio + dataset JSON, register it, replace DB vocab. */
+async function buildFromDeck(apkgPath: string): Promise<void> {
   if (!fs.existsSync(apkgPath)) {
     throw new Error(`APKG not found: ${apkgPath}`)
   }
@@ -221,31 +180,29 @@ async function buildFromDeck(apkgPath) {
   const zip = new AdmZip(apkgPath)
 
   // Media manifest: zipEntryName -> originalFilename
-  const mediaEntry = zip.getEntry('media')
-  const manifest = JSON.parse(mediaEntry.getData().toString('utf8'))
-  const nameToEntry = {}
+  const mediaEntry = zip.getEntry('media')!
+  const manifest = JSON.parse(mediaEntry.getData().toString('utf8')) as Record<string, string>
+  const nameToEntry: Record<string, string> = {}
   for (const [entryName, realName] of Object.entries(manifest)) {
     nameToEntry[realName] = entryName
   }
 
   // Read the Anki notes
-  const ankiEntry = zip.getEntry('collection.anki2')
+  const ankiEntry = zip.getEntry('collection.anki2')!
   const ankiPath = path.join(os.tmpdir(), 'collection-import.anki2')
   fs.writeFileSync(ankiPath, ankiEntry.getData())
 
-  const Database = require('better-sqlite3')
   const db = new Database(ankiPath, { readonly: true })
-  const notes = db
-    .prepare('SELECT flds FROM notes')
-    .all()
-    .map(row => row.flds.split('\x1f'))
+  const notes = (db.prepare('SELECT flds FROM notes').all() as Array<{ flds: string }>).map(row =>
+    row.flds.split('\x1f')
+  )
   db.close()
   fs.rmSync(ankiPath, { force: true })
 
   console.log(`Found ${notes.length} notes`)
 
-  // Collect the deck's word -> audio-file mapping (audio is only available for words present in the deck).
-  const deckAudioByWord = new Map()
+  // Collect the deck's word -> audio-file mapping (audio only for words present in the deck).
+  const deckAudioByWord = new Map<string, string>()
   for (const fields of notes) {
     const word = cleanWord(fields[1] || '')
     const sound = (fields[2] || '').match(/\[sound:(.+?)\]/)
@@ -261,13 +218,13 @@ async function buildFromDeck(apkgPath) {
   const byWord = parseTopik(topikCsv)
 
   fs.mkdirSync(AUDIO_DIR, { recursive: true })
-  const cards = []
+  const cards: DatasetItem[] = []
   let audioWritten = 0
   let withAudio = 0
 
   for (const [word, known] of byWord) {
     const audioFile = deckAudioByWord.get(word)
-    let audio = null
+    let audio: string | null = null
     if (audioFile) {
       const entry = zip.getEntry(nameToEntry[audioFile])
       if (entry) {
@@ -304,10 +261,8 @@ async function buildFromDeck(apkgPath) {
   console.log('\nDone. Restart the backend to serve the new words.')
 }
 
-/**
- * Build the dataset from the given (downloaded) Anki deck file.
- */
-async function main() {
+async function main(): Promise<void> {
+  fs.mkdirSync(DATA_DIR, { recursive: true })
   await buildFromDeck(resolveDeckPath())
 }
 

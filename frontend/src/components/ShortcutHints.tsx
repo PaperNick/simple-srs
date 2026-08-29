@@ -1,4 +1,4 @@
-import { SHORTCUTS, shortcutLabel } from '../shortcuts.js'
+import { SHORTCUTS, shortcutLabel } from '../shortcuts'
 
 /**
  * Render the inline keyboard shortcut hints (expand + audio) for the answer
