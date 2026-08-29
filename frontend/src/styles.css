@@ -253,21 +253,30 @@ body {
 .result-bar.red { background: linear-gradient(135deg, var(--result-red-1), var(--result-red-2)); }
 
 .answer-zone { display: flex; align-items: center; gap: 12px; padding: 18px 22px; background: var(--card-bg); }
+.answer-input-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  background: var(--card-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.answer-input-wrap:focus-within { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(138,18,196,.12); }
+.answer-input-wrap:has(.answer-input:disabled) { background: var(--disabled-bg); }
 .answer-input {
   flex: 1;
   min-width: 0;
-  border: 1px solid var(--input-border);
-  border-radius: 6px;
-  padding: 12px 14px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--ink);
   font-size: 18px;
   text-align: center;
-  outline: none;
-  color: var(--ink);
-  background: var(--card-bg);
-  transition: border-color .15s ease, box-shadow .15s ease;
+  padding: 8px 4px;
 }
-.answer-input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(138,18,196,.12); }
-.answer-input:disabled { background: var(--disabled-bg); }
 
 .submit-btn {
   border: none; cursor: pointer; border-radius: 6px;
@@ -276,6 +285,7 @@ body {
 }
 .submit-btn:hover { background: var(--btn-neutral-hover); }
 .submit-btn:disabled { cursor: default; opacity: .8; }
+.answer-input-wrap .submit-btn { padding: 8px 14px; }
 .card.result-correct .submit-btn { background: var(--result-green-2); color: #fff; }
 .card.result-incorrect .submit-btn { background: var(--result-red-2); color: #fff; }
 
@@ -343,9 +353,11 @@ body {
   .practice-stats { gap: 8px; flex-wrap: nowrap; }
   .stat-chip { padding: 8px 12px; font-size: 16px; gap: 6px; }
 
-  /* Answer row: tighten so the Check button always fits. */
+  /* Answer row: keep the input + embedded Check compact on small screens. */
   .answer-zone { padding: 14px 14px; gap: 8px; }
-  .answer-input { font-size: 16px; padding: 12px 10px; }
+  .answer-input-wrap { padding: 3px 5px; }
+  .answer-input { font-size: 16px; padding: 8px 4px; }
+  .answer-input-wrap .submit-btn { padding: 7px 12px; }
   .submit-btn { padding: 12px 14px; }
   .action-row { padding: 12px 14px; }
 

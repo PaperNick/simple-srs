@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getPracticeItems, practiceAnswer } from '../api.js'
 import { playItemAudio } from '../audio.js'
 import { SHORTCUTS, isShortcut } from '../shortcuts.js'
+import AnswerInput from './AnswerInput.jsx'
 import { ItemDetails } from './LessonCard.jsx'
 import ShortcutHints from './ShortcutHints.jsx'
 
@@ -197,24 +198,18 @@ export default function Practice({ dataset, onStop }) {
         )}
 
         <div className="answer-zone">
-          <input
-            ref={inputRef}
-            className="answer-input"
+          <AnswerInput
+            inputRef={inputRef}
             value={value}
             onChange={event => setValue(event.target.value)}
-            autoFocus
-            autoComplete="off"
-            autoCapitalize="off"
-            spellCheck="false"
+            onKeyDown={onKey}
             placeholder="Type the reading…"
             disabled={phase === 'result'}
-            onKeyDown={onKey}
+            autoFocus
+            actionLabel="Enter"
+            onAction={submit}
+            actionHidden={phase !== 'input'}
           />
-          {phase === 'input' && (
-            <button className="submit-btn" onClick={submit}>
-              Check
-            </button>
-          )}
         </div>
 
         {phase === 'result' && <ItemDetails item={current} defaultOpen="reading" />}

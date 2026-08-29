@@ -174,7 +174,7 @@ test('alphabet practice: grading, tally, input clears, Enter advances, stop', as
 
   // Correct answer -> green result + tally
   await page.locator('.answer-input').fill(readingsByChar[firstChar][0])
-  await page.getByRole('button', { name: 'Check' }).click()
+  await page.getByRole('button', { name: 'Enter' }).click()
   await expect(page.locator('.result-bar')).toHaveClass(/green/)
   await expect(page.locator('.stat-chip.ok')).toHaveText('✓ 1')
 
@@ -198,7 +198,7 @@ test('alphabet practice: grading, tally, input clears, Enter advances, stop', as
 
   // Wrong answer -> red result, miss tallied, streak resets
   await page.locator('.answer-input').fill('zzzzzz')
-  await page.getByRole('button', { name: 'Check' }).click()
+  await page.getByRole('button', { name: 'Enter' }).click()
   await expect(page.locator('.result-bar')).toHaveClass(/red/)
   await expect(page.locator('.stat-chip.no')).toHaveText('✗ 1')
   await expect(page.locator('.stat-chip.streak')).toHaveText('🔥 0')
@@ -283,7 +283,7 @@ test('word review: grading by meaning/reading, Enter to continue', async ({ page
   const isMeaning = /Meaning/.test(subtitle)
   const answer = isMeaning ? item.meaning : item.readings[0]
   await page.locator('.answer-input').fill(answer)
-  await page.getByRole('button', { name: 'Check' }).click()
+  await page.getByRole('button', { name: 'Enter' }).click()
   await expect(page.locator('.result-bar')).toHaveClass(/green/)
   await expect(page.locator('.details')).toBeVisible()
 
