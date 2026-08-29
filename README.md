@@ -103,7 +103,7 @@ Each entry carries the deck's metadata (name, mode, badge, description); the bac
 - `mode: "practice"` - endless grind, no SRS.
 - `mode: "srs"` - lessons + stage-based reviews, with per-stage stats.
 
-All dataset items share one schema: `{ type, characters, meaning?, readings[], level, audio }`.
+All dataset items share one schema: `{ type, characters, meanings[], readings[], level, audio }`.
 The backend serves **anything** under `backend/data/static/` at the `/static/...` URL.
 
 For example, `/static/audio/korean/01.mp3` URL maps to `backend/data/static/audio/korean/01.mp3` file

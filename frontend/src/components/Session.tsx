@@ -29,7 +29,7 @@ function shuffle<T>(array: T[]): T[] {
 function lessonSteps(items: Card[]): ReviewCardType[] {
   return items.flatMap(item => {
     const reading: ReviewCardType = { ...item, question_type: 'reading' }
-    if (!item.meaning) {
+    if (!item.meanings.length) {
       return [reading]
     }
     return [{ ...item, question_type: 'meaning' }, reading]

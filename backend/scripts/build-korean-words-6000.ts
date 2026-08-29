@@ -4,10 +4,11 @@ import path from 'node:path'
 import AdmZip from 'adm-zip'
 import Database from 'better-sqlite3'
 import * as dbc from '../src/db'
+import { splitMeanings } from '../src/meanings'
 import type { DatasetConfig, DatasetItem } from '@shared/types'
 
 interface TopikEntry {
-  meaning: string
+  meanings: string[]
   readings: string[]
   level: number
 }
@@ -79,7 +80,7 @@ function parseLine(line: string): string[] {
   return fields
 }
 
-/** Parse the TOPIK CSV into a map of word -> { meaning, readings, level }. */
+/** Parse the TOPIK CSV into a map of word -> { meanings, readings, level }. */
 function parseTopik(csvPath: string): Map<string, TopikEntry> {
   const byWord = new Map<string, TopikEntry>()
   const lines = fs.readFileSync(csvPath, 'utf8').split(/\r?\n/)
@@ -97,12 +98,14 @@ function parseTopik(csvPath: string): Map<string, TopikEntry> {
 
     const existing = byWord.get(word)
     if (existing) {
-      if (english && existing.meaning.indexOf(english) === -1) {
-        existing.meaning += ' / ' + english
+      for (const meaning of splitMeanings(english)) {
+        if (!existing.meanings.some(m => m.toLowerCase() === meaning.toLowerCase())) {
+          existing.meanings.push(meaning)
+        }
       }
     } else {
       byWord.set(word, {
-        meaning: english,
+        meanings: splitMeanings(english),
         readings: [roman],
         level: Math.ceil(rank / 500),
       })
@@ -238,7 +241,7 @@ async function buildFromDeck(apkgPath: string): Promise<void> {
     cards.push({
       type: 'vocabulary',
       characters: word,
-      meaning: known.meaning,
+      meanings: known.meanings,
       readings: known.readings,
       level: known.level,
       audio,

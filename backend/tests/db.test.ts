@@ -74,7 +74,7 @@ describe('item queries', () => {
       level?: number
       characters?: string
       readings?: string[]
-      meaning?: string | null
+      meanings?: string[]
       audio?: string | null
       srs_stage?: number
       available_at?: number | null
@@ -86,7 +86,7 @@ describe('item queries', () => {
       level = 1,
       characters,
       readings = [],
-      meaning = null,
+      meanings = [],
       audio = null,
       srs_stage = -1,
       available_at = null,
@@ -96,7 +96,7 @@ describe('item queries', () => {
         .prepare(
           `
       INSERT INTO items
-        (dataset, type, level, characters, readings, meaning, audio, srs_stage, available_at, created_at)
+        (dataset, type, level, characters, readings, meanings, audio, srs_stage, available_at, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
         )
@@ -106,7 +106,7 @@ describe('item queries', () => {
           level,
           characters,
           JSON.stringify(readings),
-          meaning,
+          JSON.stringify(meanings),
           audio,
           srs_stage,
           available_at,
@@ -176,21 +176,21 @@ describe('addVocab / replaceVocab / stats', () => {
   it('addVocab inserts a new vocabulary row and returns its id', () => {
     const id = dbc.addVocab(db, {
       characters: '가',
-      meaning: 'To go',
+      meanings: ['To go'],
       readings: ['ga'],
       level: 2,
       dataset: TEST_DATASET,
     })
     const row = db.prepare('SELECT * FROM items WHERE id = ?').get(id) as {
       characters: string
-      meaning: string | null
+      meanings: string | null
       readings: string
       type: string
       dataset: string
       srs_stage: number
     }
     assert.equal(row.characters, '가')
-    assert.equal(row.meaning, 'To go')
+    assert.deepEqual(grading.parseMeanings(row), ['To go'])
     assert.deepEqual(grading.parseReadings(row), ['ga'])
     assert.equal(row.type, dbc.TYPE_VOCAB)
     assert.equal(row.dataset, TEST_DATASET)
@@ -200,7 +200,7 @@ describe('addVocab / replaceVocab / stats', () => {
   it('replaceVocab clears old words + reviews and inserts the new list', () => {
     const oldId = dbc.addVocab(db, {
       characters: '가는',
-      meaning: 'Old',
+      meanings: ['Old'],
       readings: ['gada'],
       dataset: TEST_DATASET,
     })
@@ -217,7 +217,7 @@ describe('addVocab / replaceVocab / stats', () => {
         {
           type: 'vocabulary',
           characters: '갑',
-          meaning: 'A',
+          meanings: ['A'],
           readings: ['gap'],
           level: 1,
           audio: null,
@@ -225,7 +225,7 @@ describe('addVocab / replaceVocab / stats', () => {
         {
           type: 'vocabulary',
           characters: '만',
-          meaning: 'B',
+          meanings: ['B'],
           readings: ['man'],
           level: 2,
           audio: null,
@@ -261,8 +261,8 @@ describe('addVocab / replaceVocab / stats', () => {
     const insert = (chars: string, stage: number, avail: number | null) => {
       db.prepare(
         `
-        INSERT INTO items (dataset, type, level, characters, readings, meaning, audio, srs_stage, available_at, created_at)
-        VALUES (?, ?, 1, ?, '[]', NULL, NULL, ?, ?, ?)
+        INSERT INTO items (dataset, type, level, characters, readings, meanings, audio, srs_stage, available_at, created_at)
+        VALUES (?, ?, 1, ?, '[]', '[]', NULL, ?, ?, ?)
       `
       ).run(target.id, dbc.TYPE_VOCAB, chars, stage, avail, now)
     }

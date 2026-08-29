@@ -23,7 +23,7 @@ export default function LessonCard({ item, isLast, onNext }: LessonCardProps) {
   const [revealed, setRevealed] = useState(false)
   const isMeaning = item.question_type === 'meaning'
   const label = isMeaning ? 'Vocabulary Meaning' : 'Vocabulary Reading'
-  const answer = isMeaning ? item.meaning : item.readings.join(', ')
+  const answer = isMeaning ? item.meanings.join(', ') : item.readings.join(', ')
 
   // Reveal the answer first; only continue to the next step once it's revealed.
   const advance = useCallback(() => {
@@ -107,7 +107,9 @@ export function ItemDetails({ item, defaultOpen = null }: ItemDetailsProps) {
       if (!isShortcut(event, SHORTCUTS.expandDetails)) {
         return
       }
-      setOpen(new Set(['meaning', 'reading'].filter(panel => panel === 'reading' || item.meaning)))
+      setOpen(
+        new Set(['meaning', 'reading'].filter(panel => panel === 'reading' || item.meanings.length))
+      )
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -127,7 +129,7 @@ export function ItemDetails({ item, defaultOpen = null }: ItemDetailsProps) {
 
   return (
     <div className="details">
-      {item.meaning && (
+      {item.meanings.length > 0 && (
         <div className={`detail-row ${open.has('meaning') ? 'open' : ''}`}>
           <div className="detail-head" onClick={() => toggle('meaning')}>
             <span className="chev">›</span>
@@ -135,7 +137,11 @@ export function ItemDetails({ item, defaultOpen = null }: ItemDetailsProps) {
           </div>
           {open.has('meaning') && (
             <div className="detail-body">
-              <div className="meaning-text">{item.meaning}</div>
+              {item.meanings.map(meaning => (
+                <div key={meaning} className="meaning-text">
+                  {meaning}
+                </div>
+              ))}
             </div>
           )}
         </div>

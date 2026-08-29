@@ -82,7 +82,7 @@ It carries the metadata the frontend renders, so the client never hardcodes anyt
 
 All dataset files share **one unified item schema**:
 ```
-{ type, characters, meaning?, readings[], level, audio }
+{ type, characters, meanings[], readings[], level, audio }
 ```
 
 The `audio` path points at the local MP3 under `data/static/`.
@@ -98,7 +98,7 @@ You can also add a single word at runtime (the `dataset` field is required):
 ```bash
 curl -X POST localhost:3000/api/vocab \
   -H 'Content-Type: application/json' \
-  -d '{"characters":"가","meaning":"to go","readings":["ga"],"dataset":"korean-words-6000"}'
+  -d '{"characters":"가","meanings":["to go"],"readings":["ga"],"dataset":"korean-words-6000"}'
 ```
 
 ## API
@@ -141,7 +141,9 @@ The Korean words dataset is built from an Anki deck file (for audio). Download t
 npx tsx scripts/build-korean-words-6000.ts path/to/deck.apkg
 ```
 
-The script downloads (and caches) the TOPIK 6000 CSV, reads the Anki notes (word + `[sound:...mp3]`), enriches each word with meaning + romanization from the CSV by matching the word (`audio = null` for words not in the deck), extracts the audio into `data/static/audio/korean/korean-words-6000/`, and **replaces** the vocabulary in the database (clearing prior word SRS progress).
+The script downloads (and caches) the TOPIK 6000 CSV, reads the Anki notes (word + `[sound:...mp3]`), enriches each word with meanings + romanization from the CSV by matching the word (`audio = null` for words not in the deck), extracts the audio into `data/static/audio/korean/korean-words-6000/`, and **replaces** the vocabulary in the database (clearing prior word SRS progress).
+
+Each raw sense string is split into discrete `meanings[]` entries at build time by `src/meanings.ts` (on numbered senses, `;`, `/`, `,`, and `or`/`and` alternatives), so a word like *절* is stored as `["A Buddhist temple", "bow", "greeting", "paragraph", "passage", "clause", "verse"]` rather than one combined string.
 
 The audio path is stored in each item's `audio` column and returned by the API, so word cards can play it.
 
@@ -156,4 +158,6 @@ npm test
 
 ## Grading
 
-A typed answer is graded as **correct if it is at least 80% similar** (by Levenshtein edit distance) to an accepted answer - exact and case-insensitive matches always pass. Meaning answers additionally accept partial words (e.g. `middle` for *In the middle*) while guarding against bare stopwords.
+A typed answer is graded as **correct if it is at least 80% similar** (by Levenshtein edit distance) to an accepted answer - exact and case-insensitive matches always pass.
+
+Meaning answers compare the typed answer against each stored `meanings[]` entry as a full-string match, dropping common stopwords (`a`/`the`/`in`/`to`/etc.) and ignoring punctuation/case - so `middle` matches *In the middle* - while rejecting bare stopwords.

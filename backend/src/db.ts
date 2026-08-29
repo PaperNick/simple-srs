@@ -27,7 +27,7 @@ interface DatasetAggregate {
 
 interface AddVocabOptions {
   characters: string
-  meaning?: string
+  meanings?: string[]
   readings?: string[]
   level?: number
   audio?: string | null
@@ -84,7 +84,7 @@ function createSchema(db: DB): void {
       level        INTEGER NOT NULL DEFAULT 1,
       characters   TEXT    NOT NULL,          -- prompt (the item's characters)
       readings     TEXT    NOT NULL,          -- JSON array of accepted romanizations
-      meaning      TEXT,                      -- English meaning, for vocabulary items
+      meanings     TEXT,                      -- JSON array of English meanings, for vocabulary items
       audio        TEXT,                      -- optional URL to a local audio file
       srs_stage    INTEGER NOT NULL DEFAULT -1, -- -1 = new/unlearned
       available_at INTEGER,                   -- epoch ms when next review is due
@@ -135,7 +135,7 @@ function listDatasets(): DatasetConfig[] {
  */
 function bulkInsertItems(db: DB, rows: ItemSeedRow[], now = Date.now()): number {
   const columns =
-    'dataset, type, level, characters, readings, meaning, audio, srs_stage, available_at, created_at'
+    'dataset, type, level, characters, readings, meanings, audio, srs_stage, available_at, created_at'
   let inserted = 0
   for (let start = 0; start < rows.length; start += BULK_INSERT_CHUNK) {
     const chunk = rows.slice(start, start + BULK_INSERT_CHUNK)
@@ -149,7 +149,7 @@ function bulkInsertItems(db: DB, rows: ItemSeedRow[], now = Date.now()): number 
         row.level || 1,
         row.characters,
         JSON.stringify(row.readings || []),
-        row.meaning || null,
+        JSON.stringify(row.meanings || []),
         row.audio || null,
         row.srs_stage ?? -1,
         row.available_at ?? null,
@@ -190,7 +190,7 @@ function seed(db: DB): { inserted: number } {
         level: item.level || 1,
         characters: item.characters,
         readings: item.readings || [],
-        meaning: item.meaning || null,
+        meanings: item.meanings || [],
         audio: item.audio || null,
         srs_stage: -1,
         available_at: null,
@@ -352,12 +352,12 @@ function datasets(db: DB): DatasetSummary[] {
 /** Insert a single vocabulary item and return its id. */
 function addVocab(
   db: DB,
-  { characters, meaning, readings, level = 1, audio = null, dataset }: AddVocabOptions
+  { characters, meanings, readings, level = 1, audio = null, dataset }: AddVocabOptions
 ): number {
   const info = db
     .prepare(
       `
-    INSERT INTO items (dataset, type, level, characters, readings, meaning, audio, srs_stage, available_at, created_at)
+    INSERT INTO items (dataset, type, level, characters, readings, meanings, audio, srs_stage, available_at, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, -1, NULL, ?)
   `
     )
@@ -367,7 +367,7 @@ function addVocab(
       level,
       characters,
       JSON.stringify(readings || []),
-      meaning || null,
+      JSON.stringify(meanings || []),
       audio || null,
       Date.now()
     )
@@ -386,7 +386,7 @@ function replaceVocab(db: DB, words: DatasetItem[], dataset: string): number {
     level: word.level || 1,
     characters: word.characters,
     readings: word.readings || [],
-    meaning: word.meaning || null,
+    meanings: word.meanings || [],
     audio: word.audio || null,
     srs_stage: -1,
     available_at: null,
@@ -411,9 +411,8 @@ function stats(db: DB): DatasetsResponse {
 }
 
 /**
- * Open (creating if needed) the database, apply schema + migrations and seed the
- * configured datasets. Mutations from old schemas are applied so a pre-existing
- * file keeps working.
+ * Open (creating if needed) the database, apply the schema and seed the
+ * configured datasets.
  */
 function open(): DB {
   if (!fs.existsSync(DATA_DIR)) {
@@ -422,41 +421,8 @@ function open(): DB {
   const db = new Database(dbPath())
   db.pragma('journal_mode = WAL')
   createSchema(db)
-
-  migrateColumns(db)
   seed(db)
   return db
-}
-
-/**
- * Add the `audio` and `dataset` columns when opening a database created by an
- * older schema version, backfilling the dataset from the item type.
- */
-function migrateColumns(db: DB): void {
-  if (!hasColumn(db, 'audio')) {
-    db.exec('ALTER TABLE items ADD COLUMN audio TEXT')
-  }
-
-  if (!hasColumn(db, 'dataset')) {
-    db.exec('ALTER TABLE items ADD COLUMN dataset TEXT')
-    // Backfill the dataset from each row's type using the configured registry
-    // (no hard-coded dataset ids).
-    const typeToDataset = new Map<ItemType, string>()
-    for (const dataset of listDatasets()) {
-      if (!typeToDataset.has(dataset.type)) {
-        typeToDataset.set(dataset.type, dataset.id)
-      }
-    }
-    const backfill = db.prepare('UPDATE items SET dataset = ? WHERE dataset IS NULL AND type = ?')
-    for (const [type, datasetId] of typeToDataset) {
-      backfill.run(datasetId, type)
-    }
-  }
-}
-
-/** Whether the `items` table already has the given column. */
-function hasColumn(db: DB, name: string): boolean {
-  return !!db.prepare("SELECT 1 FROM pragma_table_info('items') WHERE name = ?").get(name)
 }
 
 export {

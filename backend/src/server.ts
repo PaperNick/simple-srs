@@ -2,7 +2,7 @@ import path from 'node:path'
 import express from 'express'
 import type { NextFunction, Request, Response } from 'express'
 import * as dbc from './db'
-import { parseReadings, grade, gradeQuestion } from './grading'
+import { parseReadings, parseMeanings, grade, gradeQuestion } from './grading'
 import type {
   Card,
   DatasetsResponse,
@@ -32,7 +32,7 @@ app.use('/static', express.static(path.join(DATA_DIR, 'static')))
 
 interface VocabAddBody {
   characters?: string
-  meaning?: string
+  meanings?: string[]
   readings?: string[]
   level?: number
   dataset?: string
@@ -46,7 +46,7 @@ function toCard(item: ItemRow): Card {
     level: item.level,
     characters: item.characters,
     readings: parseReadings(item),
-    meaning: item.meaning,
+    meanings: parseMeanings(item),
     audio: item.audio || null,
   }
 }
@@ -109,14 +109,14 @@ app.post('/api/practice/answer', (req, res) => {
 
 /** Add a single vocabulary item. Useful for testing before you supply the dataset. */
 app.post('/api/vocab', (req, res) => {
-  const { characters, meaning, readings, level, dataset } = (req.body as VocabAddBody) || {}
+  const { characters, meanings, readings, level, dataset } = (req.body as VocabAddBody) || {}
   if (!characters) {
     return res.status(400).json({ error: 'characters required' })
   }
   if (!dataset) {
     return res.status(400).json({ error: 'dataset required' })
   }
-  const id = dbc.addVocab(db, { characters, meaning, readings, level, dataset })
+  const id = dbc.addVocab(db, { characters, meanings, readings, level, dataset })
   const body: VocabAddResponse = { id, stats: dbc.stats(db) }
   res.status(201).json(body)
 })

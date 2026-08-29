@@ -45,12 +45,12 @@ const FIXTURE_HANGUL = [
   { type: 'character', characters: 'ㄷ', readings: ['d', 't'], level: 1 },
 ]
 const FIXTURE_WORDS = [
-  { type: 'vocabulary', characters: '가', meaning: 'To go', readings: ['ga'], level: 1 },
-  { type: 'vocabulary', characters: '나', meaning: 'I / me', readings: ['na'], level: 1 },
-  { type: 'vocabulary', characters: '다', meaning: 'All', readings: ['da'], level: 1 },
-  { type: 'vocabulary', characters: '라', meaning: 'Fourth letter', readings: ['ra'], level: 1 },
-  { type: 'vocabulary', characters: '마', meaning: 'Horse', readings: ['ma'], level: 1 },
-  { type: 'vocabulary', characters: '바', meaning: 'Bar', readings: ['ba'], level: 1 },
+  { type: 'vocabulary', characters: '가', meanings: ['To go'], readings: ['ga'], level: 1 },
+  { type: 'vocabulary', characters: '나', meanings: ['I', 'me'], readings: ['na'], level: 1 },
+  { type: 'vocabulary', characters: '다', meanings: ['All'], readings: ['da'], level: 1 },
+  { type: 'vocabulary', characters: '라', meanings: ['Fourth letter'], readings: ['ra'], level: 1 },
+  { type: 'vocabulary', characters: '마', meanings: ['Horse'], readings: ['ma'], level: 1 },
+  { type: 'vocabulary', characters: '바', meanings: ['Bar'], readings: ['ba'], level: 1 },
 ]
 
 /** Materialize the fixture dataset into a temp DATA_DIR and return its path. */
@@ -207,7 +207,7 @@ describe('API - vocab, lesson, review flow', () => {
     const total = before.body.datasets.find((d: DatasetSummary) => d.id === srsDataset.id).total
     const { status, body } = await post('/api/vocab', {
       characters: '가',
-      meaning: 'To go',
+      meanings: ['To go'],
       readings: ['ga'],
       level: 1,
       dataset: srsDataset.id,
@@ -221,7 +221,7 @@ describe('API - vocab, lesson, review flow', () => {
   it('POST /api/vocab without a dataset is rejected', async () => {
     const { status } = await post('/api/vocab', {
       characters: '가',
-      meaning: 'To go',
+      meanings: ['To go'],
       readings: ['ga'],
       level: 1,
     })

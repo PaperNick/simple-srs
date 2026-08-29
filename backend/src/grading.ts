@@ -4,14 +4,25 @@ interface ReadingsItem {
   readings?: string | null
 }
 
-interface GradeItem extends ReadingsItem {
-  meaning?: string | null
+interface MeaningsItem {
+  meanings?: string | null
 }
+
+interface GradeItem extends ReadingsItem, MeaningsItem {}
 
 /** Parse an item's `readings` JSON column into an array of romanizations. */
 function parseReadings(item: ReadingsItem): string[] {
   try {
     return JSON.parse(item.readings || '[]') as string[]
+  } catch (_) {
+    return []
+  }
+}
+
+/** Parse an item's `meanings` JSON column into an array of meanings. */
+function parseMeanings(item: MeaningsItem): string[] {
+  try {
+    return JSON.parse(item.meanings || '[]') as string[]
   } catch (_) {
     return []
   }
@@ -91,8 +102,8 @@ function similar(accepted: string, typed: string): boolean {
 }
 
 /**
- * Common English stopwords - accepted only if the whole meaning matches, so
- * short/loose answers like "the" aren't scored correct for a multi-word meaning.
+ * Common English stopwords, dropped before comparing a meaning with a typed
+ * answer so articles/prepositions don't force the learner to type them.
  */
 const STOPWORDS = new Set([
   'a',
@@ -132,28 +143,15 @@ function grade(
 }
 
 /**
- * Split a meaning string into individual acceptable answers. English meanings
- * can hold multiple senses ("1. to go 2. to leave"), comma/slash lists, or
- * conjunction-separated alternatives ("a thing or an object"). The full string
- * is always kept as an answer too.
+ * Extract the significant words of a meaning/answer: lowercased tokens, minus
+ * stopwords and punctuation. Used to compare meanings with typed answers as a
+ * full-string match while ignoring articles/prepositions.
  */
-function meaningAlternatives(meaning: string | null | undefined): string[] {
-  if (!meaning) {
-    return []
-  }
-
-  const full = String(meaning).trim()
-  const parts = new Set<string>()
-  const add = (part: string) => {
-    const trimmed = part.trim()
-    if (trimmed) {
-      parts.add(trimmed)
-    }
-  }
-
-  full.split(/\s*(?:\d+\.|;|\/|,|\bor\b|\band\b)\s*/i).forEach(add)
-  add(full)
-  return [...parts]
+function contentWords(value: string): string[] {
+  return String(value || '')
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(word => word.length > 0 && !STOPWORDS.has(word))
 }
 
 /**
@@ -168,9 +166,9 @@ function gradeQuestion(
   const answer = normalize(input)
 
   if (questionType === 'meaning') {
-    const alternatives = meaningAlternatives(item.meaning)
-    const correct = isMeaningMatch(alternatives, answer)
-    return { correct, accepted: alternatives, expectedDisplay: item.meaning ?? '' }
+    const meanings = parseMeanings(item)
+    const correct = meanings.some(meaning => isMeaningMatch(meaning, input))
+    return { correct, accepted: meanings, expectedDisplay: meanings.join(', ') }
   }
 
   const readings = parseReadings(item)
@@ -184,42 +182,29 @@ function gradeQuestion(
 }
 
 /**
- * Decide whether an answer is correct for a meaning question. Accepts exact or
- * >=80% similar alternatives, or a partial word contained in an alternative,
- * while rejecting bare stopwords and very short answers.
+ * Decide whether a typed answer matches a single meaning. The meaning and
+ * answer are reduced to their content words (stopwords dropped) and compared as
+ * a full string, tolerating a small typo (>= SIM_THRESHOLD similar).
  */
-function isMeaningMatch(alternatives: string[], answer: string): boolean {
-  if (!answer) {
+function isMeaningMatch(meaning: string, answer: string): boolean {
+  const meaningKey = contentWords(meaning).join(' ')
+  const answerKey = contentWords(answer).join(' ')
+
+  if (!meaningKey || !answerKey) {
     return false
   }
 
-  for (const alternative of alternatives) {
-    const normalized = normalize(alternative)
-    if (similar(normalized, answer)) {
-      return true
-    }
-    if (answer.length < 2) {
-      continue
-    }
-    if (STOPWORDS.has(answer) || STOPWORDS.has(normalized)) {
-      continue
-    }
-    if (normalized.includes(answer)) {
-      return true
-    }
-  }
-
-  return false
+  return similar(meaningKey, answerKey)
 }
 
 export {
   parseReadings,
+  parseMeanings,
   normalize,
   levenshtein,
   similar,
   grade,
   gradeQuestion,
-  meaningAlternatives,
   isMeaningMatch,
   SIM_THRESHOLD,
 }

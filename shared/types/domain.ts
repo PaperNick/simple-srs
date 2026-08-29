@@ -40,7 +40,7 @@ export interface DatasetConfig {
 export interface DatasetItem {
   type: ItemType
   characters: string
-  meaning?: string | null
+  meanings?: string[]
   readings: string[]
   level: number
   audio: string | null
@@ -76,7 +76,7 @@ export interface Card {
   level: number
   characters: string
   readings: string[]
-  meaning: string | null
+  meanings: string[]
   audio: string | null
 }
 
@@ -93,7 +93,7 @@ export interface ItemRow {
   level: number
   characters: string
   readings: string
-  meaning: string | null
+  meanings: string | null
   audio: string | null
   srs_stage: number
   available_at: number | null
@@ -107,7 +107,7 @@ export interface ItemSeedRow {
   level: number
   characters: string
   readings: string[]
-  meaning: string | null
+  meanings: string[]
   audio: string | null
   srs_stage: number
   available_at: number | null

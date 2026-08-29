@@ -238,12 +238,12 @@ test('word lesson: pressing "p" plays the word audio after reveal', async ({ pag
 
 test('word lesson walks meaning + reading steps and completes', async ({ page }) => {
   await page.goto('/')
-  const lesson = await getJson<{ items: Array<{ meaning: string | null }> }>(
+  const lesson = await getJson<{ items: Array<{ meanings: string[] }> }>(
     page,
     '/api/lesson/start?dataset=words'
   )
   expect(lesson.items.length).toBeGreaterThan(0)
-  const expectedSteps = lesson.items.reduce((n, it) => n + (it.meaning ? 1 : 0) + 1, 0)
+  const expectedSteps = lesson.items.reduce((n, it) => n + (it.meanings.length ? 1 : 0) + 1, 0)
 
   await page.getByRole('button', { name: /Start Lesson/ }).click()
   await expect(page.locator('.subtitle-bar')).toContainText('Vocabulary')
@@ -275,7 +275,7 @@ test('word review: grading by meaning/reading, Enter to continue', async ({ page
   await expect(page.getByRole('button', { name: /Start Review/ })).toBeEnabled()
 
   const { due } = await getJson<{
-    due: Array<{ characters: string; meaning: string; readings: string[]; audio: string | null }>
+    due: Array<{ characters: string; meanings: string[]; readings: string[]; audio: string | null }>
   }>(page, '/api/review/start?dataset=words')
   expect(due.length).toBeGreaterThan(0)
 
@@ -290,7 +290,7 @@ test('word review: grading by meaning/reading, Enter to continue', async ({ page
 
   // Answer as prompted (read from the API data)
   const isMeaning = /Meaning/.test(subtitle!)
-  const answer = isMeaning ? item!.meaning : item!.readings[0]
+  const answer = isMeaning ? item!.meanings[0] : item!.readings[0]
   await page.locator('.answer-input').fill(answer)
   await page.getByRole('button', { name: 'Enter' }).click()
   await expect(page.locator('.result-bar')).toHaveClass(/green/)

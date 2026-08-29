@@ -32,7 +32,7 @@ export default function ReviewCard({ item, onMissed, onNext }: ReviewCardProps) 
   const label = isMeaning ? 'Vocabulary Meaning' : 'Vocabulary Reading'
   const placeholder = isMeaning ? 'Type the meaning…' : 'Type the reading…'
   const expected = (cardItem: Card): string =>
-    isMeaning ? (cardItem.meaning ?? '') : cardItem.readings.join(', ')
+    isMeaning ? cardItem.meanings.join(', ') : cardItem.readings.join(', ')
 
   const submit = async (value: string) => {
     if (!value || !value.trim()) {
