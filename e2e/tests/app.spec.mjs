@@ -212,7 +212,7 @@ test('alphabet practice: grading, tally, input clears, Enter advances, stop', as
   }
 
   // Stop -> back to dashboard
-  await page.getByRole('button', { name: 'Stop' }).click()
+  await page.getByRole('button', { name: 'Back to Dashboard' }).click()
   await expect(page.locator('.brand')).toHaveText('Simple.SRS')
 })
 
@@ -307,6 +307,6 @@ test('word review: grading by meaning/reading, Enter to continue', async ({ page
   await expect(page.locator('.answer-input')).toHaveValue('')
 
   // Stop back to dashboard
-  await page.getByRole('button', { name: 'Dashboard', exact: true }).click()
+  await page.getByRole('button', { name: 'Back to Dashboard' }).click()
   await expect(page.locator('.brand')).toHaveText('Simple.SRS')
 })

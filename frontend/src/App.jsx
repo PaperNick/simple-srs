@@ -82,8 +82,6 @@ export default function App() {
     refresh()
   }, [refresh])
 
-  const topbarLabel = view === 'session' ? 'Dashboard' : view === 'practice' ? 'Stop' : ''
-
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -99,11 +97,6 @@ export default function App() {
           >
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
-          {topbarLabel && (
-            <button className="ghost-btn" onClick={backToDashboard}>
-              {topbarLabel}
-            </button>
-          )}
         </div>
       </header>
 
