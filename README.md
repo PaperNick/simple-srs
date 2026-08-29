@@ -20,8 +20,8 @@ Monorepo with three projects:
 
 ## Prerequisites
 
-- **Node.js** (pinned to 24 via `.nvmrc`; Node 20+ recommended)
-- **npm**
+- Node.js
+- npm
 
 ```bash
 # Use the pinned Node version
@@ -31,33 +31,38 @@ nvm use
 ## Install
 
 ```bash
-cd backend  && npm ci
-cd frontend && npm ci
-cd e2e && npm ci
+npm ci
+npm --prefix backend  ci
+npm --prefix frontend ci
+npm --prefix e2e ci
 ```
 
 ## Run (development)
 
-Start both servers together with `start.sh` (stops both cleanly on Ctrl+C):
+Start both servers together from the repo root:
 
 ```bash
-./start.sh
+npm start
 ```
 
-Ports default to backend `3000` / frontend `5173`; override with the `BACKEND_PORT` / `FRONTEND_PORT` env vars.
-
-Or run them in two terminals:
+Start just one of them:
 
 ```bash
-cd backend  && npm run dev    # API on :3000 (auto-reloads)
-cd frontend && npm start      # UI on :5173 (proxies /api to :3000)
+npm run backend
+npm run frontend
 ```
 
-Open http://localhost:5173.
+Ports default to backend: `3000`, frontend: `5173`. Override with the `BACKEND_PORT`, `FRONTEND_PORT` env vars:
+
+```bash
+BACKEND_PORT=3100 FRONTEND_PORT=5174 npm start
+```
+
+Open http://localhost:5173
 
 ## Run (production)
 
-Build the frontend, then run the backend - it serves the built UI:
+Build the frontend, then run the backend (which also serves the frontend app)
 
 ```bash
 cd frontend && npm run build
@@ -109,19 +114,32 @@ See the [backend README](backend/README.md) how to build them and for the Korean
 ## Notes
 
 - Keyboard shortcuts are configurable via Vite env vars (see [`frontend/README.md`](frontend/README.md) and `frontend/.env.example`).
-- Formatting uses Prettier: `npm run format` in each project.
-- Backend logic is covered by tests: `cd backend && npm test`.
+- Formatting uses Prettier: `npm run format` formats everything. Use `format:backend`, `format:frontend`, `format:e2e`, `format:root` for just one scope.
+- A Husky pre-commit hook runs `npm run format` on every commit.
 
-## E2E tests
+## Tests
+
+Run the whole suite (backend + e2e) with `npm test`.
+
+### Backend
+
+Unit tests for the Express API, grading, and SRS scheduling:
+
+```bash
+npm run test:backend
+```
+
+### E2E
 
 A Playwright suite (`e2e/`) exercises the frontend against a fresh, self-contained fixture.
 
 It covers the dashboard, practice (grading, tally, input clearing, Enter-to-advance), and the word lesson + review flows - all data-driven from `datasets.json`.
 
 ```bash
-cd e2e
-npm ci
+npm --prefix e2e ci
+
 # Run only once
-npm run install-browsers
-npm test
+npm --prefix e2e run install-browsers
+
+npm run test:e2e
 ```

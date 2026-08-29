@@ -1,0 +1,25 @@
+{
+  "name": "simple-srs",
+  "version": "1.0.0",
+  "description": "A dataset-driven spaced-repetition and practice app for learning Vocabulary",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node start.mjs",
+    "backend": "npm --prefix backend run dev",
+    "frontend": "npm --prefix frontend run dev",
+    "test": "npm run test:backend && npm run test:e2e",
+    "test:backend": "npm --prefix backend test",
+    "test:e2e": "npm --prefix e2e test",
+    "format": "npm run format:root && npm run format:backend && npm run format:frontend && npm run format:e2e",
+    "format:root": "prettier --write '*.{js,mjs,cjs}'",
+    "format:backend": "prettier --write 'backend/**/*.{js,jsx,mjs,cjs}'",
+    "format:frontend": "prettier --write 'frontend/**/*.{js,jsx,mjs,cjs}'",
+    "format:e2e": "prettier --write 'e2e/**/*.{js,jsx,mjs,cjs}'",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "prettier": "^3.9.6"
+  }
+}

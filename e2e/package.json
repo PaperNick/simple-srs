@@ -1,21 +1,20 @@
 {
   "name": "e2e",
   "version": "1.0.0",
+  "private": true,
   "description": "",
   "main": "index.js",
   "scripts": {
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
-    "install-browsers": "playwright install chromium",
-    "format": "prettier --write 'playwright.config.mjs' 'launch-servers.mjs' 'tests/**/*.mjs'"
+    "install-browsers": "playwright install chromium"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "@playwright/test": "^1.55.0",
-    "prettier": "^3.9.6"
+    "@playwright/test": "^1.55.0"
   }
 }
