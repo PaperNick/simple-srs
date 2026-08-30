@@ -74,7 +74,11 @@ export default function LessonCard({ item, isLast, onNext }: LessonCardProps) {
       {revealed && !isSelfGrade && <div className="result-bar green">{answer}</div>}
 
       <div className="answer-zone">
-        <button className="submit-btn" onClick={() => setRevealed(true)} disabled={revealed}>
+        <button
+          className="submit-btn reveal-btn"
+          onClick={() => setRevealed(true)}
+          disabled={revealed}
+        >
           {revealed ? 'Learning ✔' : 'Reveal'}
         </button>
       </div>
