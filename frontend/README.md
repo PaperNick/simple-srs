@@ -44,6 +44,8 @@ npm run preview   # optional: preview the production build locally on :4173
 - **Practice** - endless, shuffled grinding of a dataset's items (e.g. the 40 Hangul jamo). No SRS; answer by typing the romanization. Runs until you press **Stop**. Shows a running tally (answered / correct / wrong / streak).
 - **Lesson / Review (Words SRS)** - teaches new words, then reviews them on a stage-based spaced-repetition schedule. Words must be added first (see `backend/data/korean-words-6000.json` or `POST /api/vocab`).
 
+Cards with no `readings` and no `meanings` are **self-graded**: instead of an input field, the card shows **Missed it** / **Got it** buttons so you decide whether you recalled it.
+
 ## Configuration
 
 Dev server port defaults to `5173` and proxies `/api` to `http://localhost:3000` (see `vite.config.js`).
@@ -56,8 +58,10 @@ Put them in `frontend/.env`, `frontend/.env.local`, or pass them on the command 
 
 | Shortcut            | Default | Env override          |
 | ------------------- | ------- | --------------------- |
-| Play audio (`p`)    | `p`     | `VITE_KEY_PLAY_AUDIO` |
-| Expand details (`e`)| `e`     | `VITE_KEY_EXPAND_DETAILS` |
+| Play audio          | `p`     | `VITE_KEY_PLAY_AUDIO` |
+| Expand details      | `e`     | `VITE_KEY_EXPAND_DETAILS` |
+| Missed it           | `1`     | `VITE_KEY_MISSED_IT`  |
+| Got it              | `2`     | `VITE_KEY_GOT_IT`     |
 | Submit / Reveal / Next | `Enter` | - (not configurable)  |
 
 Example - bind "play audio" to the space bar and "expand details" to `x`:
@@ -71,4 +75,4 @@ VITE_KEY_EXPAND_DETAILS=x
 > Keys are matched case-insensitively against `KeyboardEvent.key`, so `p`, `P`, `' '` (space), `Spacebar`, etc. all work.
 > See `.env.example` for the available overrides.
 
-The on-screen shortcut hints (next to the Continue/Next button) automatically reflect the configured keys.
+The on-screen shortcut hints automatically reflect the configured keys.

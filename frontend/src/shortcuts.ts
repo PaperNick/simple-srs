@@ -18,6 +18,8 @@ function key(name: string, fallback: string): string {
 export const SHORTCUTS = {
   playAudio: key('PLAY_AUDIO', 'p'),
   expandDetails: key('EXPAND_DETAILS', 'e'),
+  missedIt: key('MISSED_IT', '1'),
+  gotIt: key('GOT_IT', '2'),
   submit: 'Enter',
   reveal: 'Enter',
   next: 'Enter',

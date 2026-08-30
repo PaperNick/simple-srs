@@ -16,8 +16,8 @@ export type ItemType = 'character' | 'vocabulary'
 /** How a deck behaves: endless practice, or stage-based spaced repetition. */
 export type DatasetMode = 'practice' | 'srs'
 
-/** The two question forms a review can ask. */
-export type QuestionType = 'reading' | 'meaning'
+/** The question forms a review can ask. 'self-grade' cards are graded by the user (accept/reject). */
+export type QuestionType = 'reading' | 'meaning' | 'self-grade'
 
 /** A session mode selected from the dashboard. */
 export type SessionMode = 'lesson' | 'review'

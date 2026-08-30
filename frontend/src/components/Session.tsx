@@ -24,15 +24,22 @@ function shuffle<T>(array: T[]): T[] {
 
 /**
  * Expand a lesson's items into review steps: a meaning step (if the item has a
- * meaning) followed by a reading step.
+ * meaning) and a reading step (if it has a reading). Items with neither are a
+ * single self-grade step - they just need to be seen.
  */
 function lessonSteps(items: Card[]): ReviewCardType[] {
   return items.flatMap(item => {
-    const reading: ReviewCardType = { ...item, question_type: 'reading' }
-    if (!item.meanings.length) {
-      return [reading]
+    const steps: ReviewCardType[] = []
+    if (item.meanings.length) {
+      steps.push({ ...item, question_type: 'meaning' })
     }
-    return [{ ...item, question_type: 'meaning' }, reading]
+    if (item.readings.length) {
+      steps.push({ ...item, question_type: 'reading' })
+    }
+    if (steps.length === 0) {
+      steps.push({ ...item, question_type: 'self-grade' })
+    }
+    return steps
   })
 }
 

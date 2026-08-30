@@ -9,6 +9,7 @@ import type {
   ItemRow,
   ItemSeedRow,
   ItemType,
+  QuestionType,
   ScheduleResult,
   SrsStage,
   StageSummary,
@@ -240,6 +241,38 @@ function scheduleAfterAnswer(
   }
 }
 
+/** Mark the given new items as learned, scheduling their first review now. */
+function learnItems(db: DB, ids: number[], now = Date.now()): number {
+  if (ids.length === 0) {
+    return 0
+  }
+  const placeholders = ids.map(() => '?').join(', ')
+  const updatedRows = db
+    .prepare(
+      `UPDATE items SET srs_stage = 0, available_at = ? WHERE srs_stage = -1 AND id IN (${placeholders})`
+    )
+    .run(now, ...ids).changes
+
+  return updatedRows
+}
+
+/** Record a review answer against an item. */
+function recordReview(
+  db: DB,
+  itemId: number,
+  questionType: QuestionType,
+  input: string,
+  correct: boolean,
+  stage: number
+): void {
+  db.prepare(
+    `
+    INSERT INTO reviews (item_id, question_type, input, correct, srs_stage_after, answered_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `
+  ).run(itemId, questionType, input, correct ? 1 : 0, stage, Date.now())
+}
+
 /**
  * Queries are scoped to a dataset. SRS operates on a dataset whose mode is
  * 'srs'; practice operates on a 'practice' dataset (never touches srs_stage).
@@ -289,6 +322,11 @@ function practiceItems(db: DB, dataset: string): ItemRow[] {
   `
     )
     .all(dataset) as ItemRow[]
+}
+
+/** Return a single item by id, or undefined when it does not exist. */
+function getItem(db: DB, id: number): ItemRow | undefined {
+  return db.prepare('SELECT * FROM items WHERE id = ?').get(id) as ItemRow | undefined
 }
 
 /**
@@ -430,9 +468,12 @@ export {
   STAGES,
   BURNED_STAGE,
   scheduleAfterAnswer,
+  learnItems,
+  recordReview,
   dueItems,
   newItems,
   practiceItems,
+  getItem,
   datasets,
   addVocab,
   replaceVocab,

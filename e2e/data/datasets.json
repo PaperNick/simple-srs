@@ -16,5 +16,14 @@
     "type": "vocabulary",
     "badge": "SRS",
     "description": "Learn the most common Korean words. Spaced repetition with stages."
+  },
+  {
+    "id": "hangul-seen",
+    "name": "Hangul - Seen",
+    "file": "hangul-seen.json",
+    "mode": "practice",
+    "type": "character",
+    "badge": "Practice",
+    "description": "Cards that only need to be seen, with nothing to type."
   }
 ]

@@ -1,4 +1,4 @@
-import type { GradeResult } from '@shared/types'
+import type { GradeResult, QuestionType } from '@shared/types'
 
 interface ReadingsItem {
   readings?: string | null
@@ -182,6 +182,22 @@ function gradeQuestion(
 }
 
 /**
+ * Grade an item for any question type. Self-grade cards are graded by the
+ * client's accept/reject decision; reading/meaning cards compare the typed input.
+ */
+function gradeCard(
+  item: GradeItem,
+  input: string,
+  questionType: QuestionType,
+  recalled?: boolean
+): GradeResult {
+  if (questionType === 'self-grade') {
+    return { correct: recalled === true, accepted: [], expectedDisplay: '' }
+  }
+  return gradeQuestion(item, input, questionType)
+}
+
+/**
  * Decide whether a typed answer matches a single meaning. The meaning and
  * answer are reduced to their content words (stopwords dropped) and compared as
  * a full string, tolerating a small typo (>= SIM_THRESHOLD similar).
@@ -205,6 +221,7 @@ export {
   similar,
   grade,
   gradeQuestion,
+  gradeCard,
   isMeaningMatch,
   SIM_THRESHOLD,
 }

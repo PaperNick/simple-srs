@@ -32,8 +32,16 @@ export const completeLesson = (item_ids: number[]) =>
   API<LessonCompleteResponse>('/api/lesson/complete', json('POST', { item_ids }))
 export const startReview = (dataset: string) =>
   API<ReviewStartResponse>(`/api/review/start?dataset=${dataset}`)
-export const reviewAnswer = (item_id: number, input: string, question_type: QuestionType) =>
-  API<ReviewAnswerResponse>('/api/review/answer', json('POST', { item_id, input, question_type }))
+export const reviewAnswer = (
+  item_id: number,
+  input: string,
+  question_type: QuestionType,
+  recalled?: boolean
+) =>
+  API<ReviewAnswerResponse>(
+    '/api/review/answer',
+    json('POST', { item_id, input, question_type, recalled })
+  )
 
 export const getPracticeItems = (dataset: string) =>
   API<ItemsResponse>(`/api/practice/items?dataset=${dataset}`)

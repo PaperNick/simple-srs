@@ -5,6 +5,7 @@ import { playItemAudio } from '../audio'
 import { SHORTCUTS, isShortcut } from '../shortcuts'
 import AnswerInput from './AnswerInput'
 import { ItemDetails } from './LessonCard'
+import SelfGradeHints from './SelfGradeHints'
 import ShortcutHints from './ShortcutHints'
 import type { Card } from '@shared/types'
 
@@ -157,6 +158,26 @@ export default function Practice({ dataset, onStop }: PracticeProps) {
     }
   }
 
+  // Self-grade a card that has nothing to type: the user decides if they knew it.
+  const gradeSelf = (recalled: boolean) => {
+    setResult({ correct: recalled })
+    setPhase('result')
+    setTally(previous => {
+      const streak = recalled ? previous.streak + 1 : 0
+      return {
+        answered: previous.answered + 1,
+        correct: previous.correct + (recalled ? 1 : 0),
+        wrong: previous.wrong + (recalled ? 0 : 1),
+        streak,
+        best: Math.max(previous.best, streak),
+      }
+    })
+    if (!recalled && current) {
+      const insertAt = Math.min(positionRef.current + 4, sequenceRef.current.length)
+      sequenceRef.current.splice(insertAt, 0, current)
+    }
+  }
+
   const onKey = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (phase === 'input' && isShortcut(event, SHORTCUTS.submit)) {
       submit()
@@ -178,6 +199,27 @@ export default function Practice({ dataset, onStop }: PracticeProps) {
     return () => window.removeEventListener('keydown', handler)
   }, [phase, advance])
 
+  // Self-grade cards are graded by keyboard: "missed it" or "got it".
+  useEffect(() => {
+    if (current && current.readings.length > 0) {
+      return
+    }
+    const handler = (event: KeyboardEvent) => {
+      if (phase !== 'input') {
+        return
+      }
+      if (isShortcut(event, SHORTCUTS.missedIt)) {
+        event.preventDefault()
+        gradeSelf(false)
+      } else if (isShortcut(event, SHORTCUTS.gotIt)) {
+        event.preventDefault()
+        gradeSelf(true)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [current, phase, gradeSelf])
+
   if (!current) {
     return (
       <div className="view">
@@ -186,6 +228,7 @@ export default function Practice({ dataset, onStop }: PracticeProps) {
     )
   }
 
+  const hasAnswer = current.readings.length > 0
   const correct = result ? result.correct : null
   const cardClass = phase === 'result' ? (correct ? 'result-correct' : 'result-incorrect') : ''
 
@@ -204,34 +247,57 @@ export default function Practice({ dataset, onStop }: PracticeProps) {
         </div>
         <div className="subtitle-bar">Character Reading</div>
 
-        {phase === 'result' && (
+        {phase === 'result' && hasAnswer && (
           <div className={`result-bar ${correct ? 'green' : 'red'}`}>
             {current.readings.join(', ')}
           </div>
         )}
 
         <div className="answer-zone">
-          <AnswerInput
-            inputRef={inputRef}
-            value={value}
-            onChange={event => setValue(event.target.value)}
-            onKeyDown={onKey}
-            placeholder="Type the reading…"
-            disabled={phase === 'result'}
-            autoFocus
-            actionLabel="Enter"
-            onAction={submit}
-            actionHidden={phase !== 'input'}
-          />
+          {hasAnswer ? (
+            <AnswerInput
+              inputRef={inputRef}
+              value={value}
+              onChange={event => setValue(event.target.value)}
+              onKeyDown={onKey}
+              placeholder="Type the reading…"
+              disabled={phase === 'result'}
+              autoFocus
+              actionLabel="Enter"
+              onAction={submit}
+              actionHidden={phase !== 'input'}
+            />
+          ) : (
+            <div className="self-grade">
+              <button
+                className="self-grade-btn miss"
+                onClick={() => gradeSelf(false)}
+                disabled={phase === 'result'}
+              >
+                Missed it
+              </button>
+              <button
+                className="self-grade-btn got"
+                onClick={() => gradeSelf(true)}
+                disabled={phase === 'result'}
+              >
+                Got it
+              </button>
+            </div>
+          )}
         </div>
 
-        {phase === 'result' && <ItemDetails item={current} defaultOpen="reading" />}
+        {phase === 'result' && hasAnswer && <ItemDetails item={current} defaultOpen="reading" />}
 
         <div className="action-row">
           {phase === 'input' ? (
-            <button className="skip-btn" onClick={reveal}>
-              Show
-            </button>
+            hasAnswer ? (
+              <button className="skip-btn" onClick={reveal}>
+                Show
+              </button>
+            ) : (
+              <SelfGradeHints />
+            )
           ) : (
             <ShortcutHints />
           )}

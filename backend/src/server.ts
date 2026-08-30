@@ -2,14 +2,16 @@ import path from 'node:path'
 import express from 'express'
 import type { NextFunction, Request, Response } from 'express'
 import * as dbc from './db'
-import { parseReadings, parseMeanings, grade, gradeQuestion } from './grading'
+import { parseReadings, parseMeanings, grade, gradeCard } from './grading'
 import type {
   Card,
   DatasetsResponse,
+  GradeResult,
   ItemRow,
   ItemsResponse,
   LessonCompleteResponse,
   PracticeAnswerResponse,
+  QuestionType,
   ReviewAnswerResponse,
   ReviewCard,
   ReviewStartResponse,
@@ -19,6 +21,7 @@ import type {
 const db = dbc.open()
 const BACKEND_PORT = process.env.BACKEND_PORT || 3000
 const app = express()
+const QUESTION_TYPES: readonly QuestionType[] = ['reading', 'meaning', 'self-grade']
 
 app.use(express.json())
 
@@ -29,6 +32,12 @@ app.use(express.static(CLIENT_DIST))
 // Serve static files and media referenced by the datasets
 const DATA_DIR = process.env.DATA_DIR || path.join(import.meta.dirname, '..', 'data')
 app.use('/static', express.static(path.join(DATA_DIR, 'static')))
+
+interface ReviewAnswerBody {
+  question_type?: string
+  input?: string
+  recalled?: boolean
+}
 
 interface VocabAddBody {
   characters?: string
@@ -67,7 +76,7 @@ function datasetFrom(req: Request, res: Response): string | null {
 /** Look up the item referenced by a request body, responding with 404 when absent. */
 function findItemOr404(req: Request, res: Response): ItemRow | null {
   const { item_id } = (req.body as { item_id?: number }) || {}
-  const item = db.prepare('SELECT * FROM items WHERE id = ?').get(item_id) as ItemRow | undefined
+  const item = dbc.getItem(db, item_id ?? -1)
   if (item) {
     return item
   }
@@ -133,21 +142,34 @@ app.get('/api/lesson/start', (req, res) => {
 /** Mark the given items as learned and schedule their first review immediately. */
 app.post('/api/lesson/complete', (req, res) => {
   const ids = ((req.body as { item_ids?: number[] }) || {}).item_ids || []
-  const now = Date.now()
-
-  let learnedCount = 0
-  if (ids.length > 0) {
-    const placeholders = ids.map(() => '?').join(', ')
-    const updatedCount = db
-      .prepare(
-        `UPDATE items SET srs_stage = 0, available_at = ? WHERE srs_stage = -1 AND id IN (${placeholders})`
-      )
-      .run(now, ...ids).changes
-    learnedCount = updatedCount
-  }
+  const learnedCount = dbc.learnItems(db, ids)
   const body: LessonCompleteResponse = { learned: learnedCount, stats: dbc.stats(db) }
   res.json(body)
 })
+
+/**
+ * Choose which question to ask for a review card. A card with no readings and no
+ * meanings is a self-grade card (the user decides whether they recalled it).
+ */
+function pickQuestionType(card: Card): QuestionType {
+  const hasReading = card.readings.length > 0
+  const hasMeaning = card.meanings.length > 0
+  if (hasReading && hasMeaning) {
+    return Math.random() < 0.5 ? 'reading' : 'meaning'
+  }
+  if (hasReading) {
+    return 'reading'
+  }
+  if (hasMeaning) {
+    return 'meaning'
+  }
+  return 'self-grade'
+}
+
+/** Validate a client-supplied question type, returning null when invalid. */
+function parseQuestionType(value: unknown): QuestionType | null {
+  return QUESTION_TYPES.includes(value as QuestionType) ? (value as QuestionType) : null
+}
 
 app.get('/api/review/start', (req, res) => {
   const limit = Math.min(parseInt(String(req.query.limit ?? ''), 10) || 20, 100)
@@ -156,11 +178,12 @@ app.get('/api/review/start', (req, res) => {
     return
   }
   const items = dbc.dueItems(db, limit, dataset)
-  // Ask reading OR meaning for each item (prompt -> recall either).
-  const due: ReviewCard[] = items.map(item => ({
-    ...toCard(item),
-    question_type: Math.random() < 0.5 ? 'reading' : 'meaning',
-  }))
+  // Ask reading OR meaning for each item (prompt -> recall either), unless the
+  // card has nothing to type, in which case it's a self-grade card.
+  const due: ReviewCard[] = items.map(item => {
+    const card = toCard(item)
+    return { ...card, question_type: pickQuestionType(card) }
+  })
   const body: ReviewStartResponse = { due }
   res.json(body)
 })
@@ -170,23 +193,21 @@ app.post('/api/review/answer', (req, res) => {
   if (!item) {
     return
   }
-  const body = (req.body as { question_type?: string; input?: string }) || {}
-  const question_type = body.question_type === 'meaning' ? 'meaning' : 'reading'
-  const result = gradeQuestion(item, body.input ?? '', question_type)
+  const body = (req.body as ReviewAnswerBody) || {}
+  const question_type = parseQuestionType(body.question_type)
+  if (!question_type) {
+    return res.status(400).json({ error: 'invalid question_type' })
+  }
+  // A self-grade card is graded by the client's accept/reject decision.
+  const result: GradeResult = gradeCard(item, body.input ?? '', question_type, body.recalled)
   const schedule = dbc.scheduleAfterAnswer(db, item, result.correct)
-
-  db.prepare(
-    `
-    INSERT INTO reviews (item_id, question_type, input, correct, srs_stage_after, answered_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `
-  ).run(
+  dbc.recordReview(
+    db,
     item.id,
     question_type,
     String(body.input || ''),
-    result.correct ? 1 : 0,
-    schedule.stage,
-    Date.now()
+    result.correct,
+    schedule.stage
   )
 
   const response: ReviewAnswerResponse = {

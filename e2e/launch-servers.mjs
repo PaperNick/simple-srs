@@ -97,6 +97,8 @@ const env = {
   // Pin the shortcut keys to their defaults. .env.local overrides those and process env wins over .env files in Vite
   VITE_KEY_PLAY_AUDIO: 'p',
   VITE_KEY_EXPAND_DETAILS: 'e',
+  VITE_KEY_MISSED_IT: '1',
+  VITE_KEY_GOT_IT: '2',
 }
 
 const servers = [launch('backend'), launch('frontend')]

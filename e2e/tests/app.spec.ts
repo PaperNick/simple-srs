@@ -55,7 +55,7 @@ test('dashboard lists each dataset as its own card', async ({ page }) => {
   const { datasets } = await getJson<{
     datasets: Array<{ id: string; total: number; mode: string }>
   }>(page, '/api/datasets')
-  expect(datasets.length).toBe(2)
+  expect(datasets.length).toBe(3)
   const words = datasets.find(d => d.id === 'words')
   expect(words!.total).toBeGreaterThan(0)
 
@@ -211,6 +211,55 @@ test('alphabet practice: grading, tally, input clears, Enter advances, stop', as
   }
 
   // Stop -> back to dashboard
+  await page.getByRole('button', { name: 'Back to Dashboard' }).click()
+  await expect(page.locator('.brand')).toHaveText('Simple.SRS')
+})
+
+test('practice: self-grade cards accept/reject via button click', async ({ page }) => {
+  await page.goto('/')
+
+  const card = page.locator('.mode-card', { hasText: 'Hangul - Seen' })
+  await card.getByRole('button', { name: 'Practice' }).click()
+
+  // No input field - the card is self-graded with accept/reject buttons.
+  await expect(page.locator('.answer-input')).toHaveCount(0)
+
+  // Accept -> green, correct tally increments.
+  await page.getByRole('button', { name: 'Got it' }).click()
+  await expect(page.locator('.card')).toHaveClass(/result-correct/)
+  await expect(page.locator('.stat-chip.ok')).toHaveText('✓ 1')
+
+  await page.getByRole('button', { name: 'Next' }).click()
+
+  // Reject -> red, wrong tally increments.
+  await page.getByRole('button', { name: 'Missed it' }).click()
+  await expect(page.locator('.card')).toHaveClass(/result-incorrect/)
+  await expect(page.locator('.stat-chip.no')).toHaveText('✗ 1')
+
+  await page.getByRole('button', { name: 'Back to Dashboard' }).click()
+  await expect(page.locator('.brand')).toHaveText('Simple.SRS')
+})
+
+test('practice: self-grade cards accept/reject via keyboard shortcut', async ({ page }) => {
+  await page.goto('/')
+
+  const card = page.locator('.mode-card', { hasText: 'Hangul - Seen' })
+  await card.getByRole('button', { name: 'Practice' }).click()
+
+  await expect(page.locator('.answer-input')).toHaveCount(0)
+
+  // Accept via keyboard shortcut -> green, correct tally increments.
+  await page.keyboard.press('2')
+  await expect(page.locator('.card')).toHaveClass(/result-correct/)
+  await expect(page.locator('.stat-chip.ok')).toHaveText('✓ 1')
+
+  await page.getByRole('button', { name: 'Next' }).click()
+
+  // Reject via keyboard shortcut -> red, wrong tally increments.
+  await page.keyboard.press('1')
+  await expect(page.locator('.card')).toHaveClass(/result-incorrect/)
+  await expect(page.locator('.stat-chip.no')).toHaveText('✗ 1')
+
   await page.getByRole('button', { name: 'Back to Dashboard' }).click()
   await expect(page.locator('.brand')).toHaveText('Simple.SRS')
 })

@@ -38,11 +38,24 @@ const FIXTURE_DATASETS: DatasetConfig[] = [
     badge: 'SRS',
     description: 'Spaced repetition.',
   },
+  {
+    id: 'seen',
+    name: 'Seen Cards',
+    file: 'seen.json',
+    mode: 'srs',
+    type: 'vocabulary',
+    badge: 'SRS',
+    description: 'Cards that only need to be seen.',
+  },
 ]
 const FIXTURE_HANGUL = [
   { type: 'character', characters: 'ㄱ', readings: ['g', 'k'], level: 1 },
   { type: 'character', characters: 'ㄴ', readings: ['n'], level: 1 },
   { type: 'character', characters: 'ㄷ', readings: ['d', 't'], level: 1 },
+]
+const FIXTURE_SEEN = [
+  { type: 'vocabulary', characters: 'ㄱ', level: 1 },
+  { type: 'vocabulary', characters: 'ㄴ', level: 1 },
 ]
 const FIXTURE_WORDS = [
   { type: 'vocabulary', characters: '가', meanings: ['To go'], readings: ['ga'], level: 1 },
@@ -59,6 +72,7 @@ function materializeFixture(): string {
   fs.writeFileSync(path.join(dir, 'datasets.json'), JSON.stringify(FIXTURE_DATASETS, null, 2))
   fs.writeFileSync(path.join(dir, 'hangul.json'), JSON.stringify(FIXTURE_HANGUL, null, 2))
   fs.writeFileSync(path.join(dir, 'words.json'), JSON.stringify(FIXTURE_WORDS, null, 2))
+  fs.writeFileSync(path.join(dir, 'seen.json'), JSON.stringify(FIXTURE_SEEN, null, 2))
   return dir
 }
 
@@ -263,5 +277,51 @@ describe('API - vocab, lesson, review flow', () => {
     assert.equal(ans.body.correct, true)
     assert.equal(ans.body.expected, first.readings.join(', '))
     assert.ok(ans.body.item.srs_stage >= 0)
+  })
+})
+
+describe('API - self-grade cards (nothing to type)', () => {
+  it('review asks a self-grade question and grades accept/reject', async () => {
+    const seenDataset = datasets.find(d => d.id === 'seen')
+    assert.ok(seenDataset, 'seen fixture dataset is registered')
+
+    // Learn the seen cards so they become due for review.
+    const lesson = await get(`/api/lesson/start?dataset=seen`)
+    assert.equal(lesson.status, 200)
+    assert.equal(lesson.body.items.length, 2)
+    const ids: number[] = lesson.body.items.map((i: any) => i.id)
+    const complete = await post('/api/lesson/complete', { item_ids: ids })
+    assert.equal(complete.body.learned, 2)
+
+    const review = await get(`/api/review/start?dataset=seen&limit=20`)
+    assert.equal(review.status, 200)
+    assert.equal(review.body.due.length, 2)
+    const due: ReviewCard = review.body.due[0]
+    assert.equal(due.question_type, 'self-grade')
+    assert.deepEqual(due.readings, [])
+    assert.deepEqual(due.meanings, [])
+
+    // Accept ("got it") -> graded correct and advanced.
+    const accept = await post('/api/review/answer', {
+      item_id: due.id,
+      input: '',
+      question_type: 'self-grade',
+      recalled: true,
+    })
+    assert.equal(accept.status, 200)
+    assert.equal(accept.body.correct, true)
+    assert.ok(accept.body.item.srs_stage >= 1)
+
+    // Reject ("missed it") -> graded incorrect and reset.
+    const other: ReviewCard = review.body.due.find((d: ReviewCard) => d.id !== due.id)
+    const reject = await post('/api/review/answer', {
+      item_id: other.id,
+      input: '',
+      question_type: 'self-grade',
+      recalled: false,
+    })
+    assert.equal(reject.status, 200)
+    assert.equal(reject.body.correct, false)
+    assert.equal(reject.body.item.srs_stage, 0)
   })
 })

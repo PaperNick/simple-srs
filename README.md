@@ -145,7 +145,7 @@ npm run test:backend
 
 A Playwright suite (`e2e/`) exercises the frontend against a fresh, self-contained fixture.
 
-It covers the dashboard, practice (grading, tally, input clearing, Enter-to-advance), and the word lesson + review flows - all data-driven from `datasets.json`.
+It covers the dashboard, practice (grading, tally, input clearing, Enter-to-advance), self-graded cards (accept/reject + audio), and the word lesson + review flows - all data-driven from `datasets.json`.
 
 ```bash
 npm --prefix e2e ci

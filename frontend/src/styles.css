@@ -235,6 +235,7 @@ body {
 /* Distinguish question type by purple tint before answering. */
 .card.type-reading .banner { background: linear-gradient(135deg, var(--purple), var(--purple-dark)); }
 .card.type-meaning .banner { background: linear-gradient(135deg, var(--meaning-purple-1), var(--meaning-purple-2)); }
+.card.type-self-grade .banner { background: linear-gradient(135deg, var(--night), var(--night-2)); }
 .card.result-correct .banner { background: linear-gradient(135deg, var(--result-green-1), var(--result-green-2)); }
 .card.result-incorrect .banner { background: linear-gradient(135deg, var(--result-red-1), var(--result-red-2)); }
 
@@ -288,6 +289,19 @@ body {
 .answer-input-wrap .submit-btn { padding: 8px 14px; }
 .card.result-correct .submit-btn { background: var(--result-green-2); color: #fff; }
 .card.result-incorrect .submit-btn { background: var(--result-red-2); color: #fff; }
+
+.self-grade { flex: 1; display: flex; gap: 12px; }
+.self-grade-btn {
+  flex: 1; min-width: 0;
+  border: none; cursor: pointer; border-radius: 6px;
+  font-weight: 700; font-size: 16px; color: #fff;
+  padding: 14px 0; white-space: nowrap;
+}
+.self-grade-btn.got { background: var(--result-green-2); }
+.self-grade-btn.got:hover { background: var(--result-green-1); }
+.self-grade-btn.miss { background: var(--result-red-2); }
+.self-grade-btn.miss:hover { background: var(--result-red-1); }
+.self-grade-btn:disabled { cursor: default; opacity: .8; }
 
 .action-row {
   display: flex; align-items: center; justify-content: space-between;

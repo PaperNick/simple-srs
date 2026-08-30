@@ -22,7 +22,8 @@ interface ItemDetailsProps {
 export default function LessonCard({ item, isLast, onNext }: LessonCardProps) {
   const [revealed, setRevealed] = useState(false)
   const isMeaning = item.question_type === 'meaning'
-  const label = isMeaning ? 'Vocabulary Meaning' : 'Vocabulary Reading'
+  const isSelfGrade = item.question_type === 'self-grade'
+  const label = isMeaning ? 'Vocabulary Meaning' : isSelfGrade ? 'Vocabulary' : 'Vocabulary Reading'
   const answer = isMeaning ? item.meanings.join(', ') : item.readings.join(', ')
 
   // Reveal the answer first; only continue to the next step once it's revealed.
@@ -63,14 +64,14 @@ export default function LessonCard({ item, isLast, onNext }: LessonCardProps) {
 
   return (
     <div
-      className={`card ${revealed ? 'result-correct' : ''} type-${isMeaning ? 'meaning' : 'reading'}`}
+      className={`card ${revealed ? 'result-correct' : ''} type-${isSelfGrade ? 'self-grade' : isMeaning ? 'meaning' : 'reading'}`}
     >
       <div className="banner tall">
         <div className="banner-char">{item.characters}</div>
       </div>
       <div className="subtitle-bar">{label}</div>
 
-      {revealed && <div className="result-bar green">{answer}</div>}
+      {revealed && !isSelfGrade && <div className="result-bar green">{answer}</div>}
 
       <div className="answer-zone">
         <button className="submit-btn" onClick={() => setRevealed(true)} disabled={revealed}>
@@ -78,7 +79,7 @@ export default function LessonCard({ item, isLast, onNext }: LessonCardProps) {
         </button>
       </div>
 
-      {revealed && <ItemDetails item={item} defaultOpen={['meaning', 'reading']} />}
+      {revealed && !isSelfGrade && <ItemDetails item={item} defaultOpen={['meaning', 'reading']} />}
 
       <div className="action-row">
         {revealed ? <ShortcutHints /> : <span />}

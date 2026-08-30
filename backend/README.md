@@ -150,7 +150,7 @@ The audio path is stored in each item's `audio` column and returned by the API, 
 ## Testing
 
 Tests live in [`tests/`](tests) and use Node's built-in test runner (run through `tsx`).
-They cover the Levenshtein similarity, answer grading (reading + meaning), and the SRS scheduling transitions.
+They cover the Levenshtein similarity, answer grading (reading, meaning, and self-grading), and the SRS scheduling transitions.
 
 ```bash
 npm test
@@ -161,3 +161,5 @@ npm test
 A typed answer is graded as **correct if it is at least 80% similar** (by Levenshtein edit distance) to an accepted answer - exact and case-insensitive matches always pass.
 
 Meaning answers compare the typed answer against each stored `meanings[]` entry as a full-string match, dropping common stopwords (`a`/`the`/`in`/`to`/etc.) and ignoring punctuation/case - so `middle` matches *In the middle* - while rejecting bare stopwords.
+
+Cards with no `readings` and no `meanings` are **self-graded**: the review answer endpoint takes a `recalled` flag (true = "Got it", false = "Missed it") instead of a typed input, and the user's accept/reject decision drives the SRS stage change.
