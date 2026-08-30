@@ -177,8 +177,9 @@ test('alphabet practice: grading, tally, input clears, Enter advances, stop', as
   await expect(page.locator('.result-bar')).toHaveClass(/green/)
   await expect(page.locator('.stat-chip.ok')).toHaveText('✓ 1')
 
-  // After answering, the Reading-tab speaker button is present.
+  // After answering, the Reading-tab speaker button and banner play button are present.
   await expect(page.locator('.speak-btn').first()).toBeVisible()
+  await expect(page.locator('.banner-audio-btn')).toBeVisible()
 
   // Pressing "p" plays the character audio (first play -> real request).
   const pAudioPromise = page.waitForResponse(res =>
@@ -259,6 +260,32 @@ test('practice: self-grade cards accept/reject via keyboard shortcut', async ({ 
   await page.keyboard.press('1')
   await expect(page.locator('.card')).toHaveClass(/result-incorrect/)
   await expect(page.locator('.stat-chip.no')).toHaveText('✗ 1')
+
+  await page.getByRole('button', { name: 'Back to Dashboard' }).click()
+  await expect(page.locator('.brand')).toHaveText('Simple.SRS')
+})
+
+test('practice: play button appears after answering', async ({ page }) => {
+  await page.goto('/')
+
+  const card = page.locator('.mode-card', { hasText: 'Hangul - Seen' })
+  await card.getByRole('button', { name: 'Practice' }).click()
+
+  // No play button before answering.
+  await expect(page.locator('.banner-audio-btn')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Got it' }).click()
+
+  // The play button is visible after answering and plays the audio.
+  const play = page.locator('.banner-audio-btn')
+  await expect(play).toBeVisible()
+
+  const audioPromise = page.waitForResponse(res =>
+    /\/static\/audio\/korean\/hangul\/.+\.mp3$/.test(res.url())
+  )
+  await play.click()
+  const audioRes = await audioPromise
+  expect(audioRes.ok()).toBeTruthy()
 
   await page.getByRole('button', { name: 'Back to Dashboard' }).click()
   await expect(page.locator('.brand')).toHaveText('Simple.SRS')

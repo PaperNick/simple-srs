@@ -5,6 +5,7 @@ import { playItemAudio } from '../audio'
 import { SHORTCUTS, isShortcut } from '../shortcuts'
 import AnswerInput from './AnswerInput'
 import { ItemDetails } from './LessonCard'
+import PlayAudioButton from './PlayAudioButton'
 import SelfGradeHints from './SelfGradeHints'
 import ShortcutHints from './ShortcutHints'
 import type { Card, ReviewCard as ReviewCardType } from '@shared/types'
@@ -164,6 +165,7 @@ export default function ReviewCard({ item, onMissed, onNext }: ReviewCardProps) 
     <div className={`card ${cardClass} type-${typeClass}`}>
       <div className="banner">
         <div className="banner-char">{item.characters}</div>
+        {phase === 'result' && <PlayAudioButton item={item} />}
       </div>
       <div className="subtitle-bar">{label}</div>
 

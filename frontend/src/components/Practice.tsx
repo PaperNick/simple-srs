@@ -5,6 +5,7 @@ import { playItemAudio } from '../audio'
 import { SHORTCUTS, isShortcut } from '../shortcuts'
 import AnswerInput from './AnswerInput'
 import { ItemDetails } from './LessonCard'
+import PlayAudioButton from './PlayAudioButton'
 import SelfGradeHints from './SelfGradeHints'
 import ShortcutHints from './ShortcutHints'
 import type { Card } from '@shared/types'
@@ -244,6 +245,7 @@ export default function Practice({ dataset, onStop }: PracticeProps) {
       <div className={`card ${cardClass}`}>
         <div className="banner">
           <div className="banner-char">{current.characters}</div>
+          {phase === 'result' && <PlayAudioButton item={current} />}
         </div>
         <div className="subtitle-bar">Character Reading</div>
 

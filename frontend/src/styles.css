@@ -228,7 +228,19 @@ body {
   min-height: 200px;
   display: flex; align-items: center; justify-content: center;
   color: #fff;
+  position: relative;
 }
+
+.banner-audio-btn {
+  position: absolute; top: 12px; right: 12px;
+  width: 44px; height: 44px;
+  border: none; cursor: pointer;
+  border-radius: 50%;
+  font-size: 20px; line-height: 1;
+  background: rgba(0, 0, 0, .28); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.banner-audio-btn:hover { background: rgba(0, 0, 0, .45); }
 
 .banner.tall { min-height: 260px; }
 .banner-char { font-size: 96px; font-weight: 600; line-height: 1; }
