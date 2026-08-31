@@ -67,6 +67,9 @@ html.dark {
 
 * { box-sizing: border-box; }
 
+/* Inline icons sit flush against adjacent text regardless of theme colour. */
+.lucide { vertical-align: -0.125em; flex-shrink: 0; }
+
 html, body, #root {
   margin: 0;
   min-height: 100%;
@@ -102,6 +105,7 @@ body {
 .ghost-btn {
   background: none; border: 1px solid rgba(255,255,255,.3); color: #fff;
   padding: 6px 14px; border-radius: 6px; cursor: pointer;
+  display: inline-flex; align-items: center;
 }
 .ghost-btn:hover { background: rgba(255,255,255,.1); }
 
@@ -110,7 +114,6 @@ body {
 
 /* Dashboard */
 .welcome { font-size: 28px; margin: 12px 0 4px; }
-.wave { font-size: 24px; }
 .subtitle { color: var(--muted); margin-top: 0; }
 
 .mode-card {
@@ -195,7 +198,6 @@ body {
   transition: transform .05s ease, filter .15s ease;
 }
 .btn:active { transform: translateY(1px); }
-.btn-icon { font-size: 18px; }
 .btn-primary { background: linear-gradient(135deg, var(--purple), var(--purple-dark)); }
 .btn-secondary { background: linear-gradient(135deg, #42b8e8, #2f9ad6); }
 .btn:hover { filter: brightness(1.05); }
@@ -295,6 +297,7 @@ body {
   border: none; cursor: pointer; border-radius: 6px;
   background: var(--btn-neutral); color: var(--btn-neutral-text); font-weight: 600;
   padding: 12px 18px; white-space: nowrap; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
 }
 .submit-btn:hover { background: var(--btn-neutral-hover); }
 .submit-btn:disabled { cursor: default; opacity: .8; }

@@ -10,7 +10,7 @@ Each dataset declared in `backend/data/datasets.json` becomes its own deck:
 
 ## Demo
 
-[Demo video](https://github.com/user-attachments/assets/ec79bd22-baf6-493c-a890-c524b5b778eb)
+[Demo video](https://github.com/user-attachments/assets/7f4306c1-5207-4965-aadc-14f78fe23edc)
 
 Monorepo with three projects:
 

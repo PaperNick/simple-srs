@@ -215,7 +215,7 @@ test('alphabet practice: grading, tally, input clears, Enter advances, stop', as
   await page.locator('.answer-input').fill(readingsByChar[firstChar][0])
   await page.getByRole('button', { name: 'Enter' }).click()
   await expect(page.locator('.result-bar')).toHaveClass(/green/)
-  await expect(page.locator('.stat-chip.ok')).toHaveText('✓ 1')
+  await expect(page.locator('.stat-chip.ok')).toHaveText('1')
 
   // After answering, the Reading-tab speaker button and banner play button are present.
   await expect(page.locator('.speak-btn').first()).toBeVisible()
@@ -238,8 +238,8 @@ test('alphabet practice: grading, tally, input clears, Enter advances, stop', as
   await page.locator('.answer-input').fill('zzzzzz')
   await page.getByRole('button', { name: 'Enter' }).click()
   await expect(page.locator('.result-bar')).toHaveClass(/red/)
-  await expect(page.locator('.stat-chip.no')).toHaveText('✗ 1')
-  await expect(page.locator('.stat-chip.streak')).toHaveText('🔥 0')
+  await expect(page.locator('.stat-chip.no')).toHaveText('1')
+  await expect(page.locator('.stat-chip.streak')).toHaveText('0')
 
   // Show/reveal path also works
   await page.keyboard.press('Enter')
@@ -266,14 +266,14 @@ test('practice: self-grade cards accept/reject via button click', async ({ page 
   // Accept -> green, correct tally increments.
   await page.getByRole('button', { name: 'Got it' }).click()
   await expect(page.locator('.card')).toHaveClass(/result-correct/)
-  await expect(page.locator('.stat-chip.ok')).toHaveText('✓ 1')
+  await expect(page.locator('.stat-chip.ok')).toHaveText('1')
 
   await page.getByRole('button', { name: 'Next' }).click()
 
   // Reject -> red, wrong tally increments.
   await page.getByRole('button', { name: 'Missed it' }).click()
   await expect(page.locator('.card')).toHaveClass(/result-incorrect/)
-  await expect(page.locator('.stat-chip.no')).toHaveText('✗ 1')
+  await expect(page.locator('.stat-chip.no')).toHaveText('1')
 
   await page.getByRole('button', { name: 'Back to Dashboard' }).click()
   await expect(page.locator('.brand')).toHaveText('Simple.SRS')
@@ -290,14 +290,14 @@ test('practice: self-grade cards accept/reject via keyboard shortcut', async ({ 
   // Accept via keyboard shortcut -> green, correct tally increments.
   await page.keyboard.press('2')
   await expect(page.locator('.card')).toHaveClass(/result-correct/)
-  await expect(page.locator('.stat-chip.ok')).toHaveText('✓ 1')
+  await expect(page.locator('.stat-chip.ok')).toHaveText('1')
 
   await page.getByRole('button', { name: 'Next' }).click()
 
   // Reject via keyboard shortcut -> red, wrong tally increments.
   await page.keyboard.press('1')
   await expect(page.locator('.card')).toHaveClass(/result-incorrect/)
-  await expect(page.locator('.stat-chip.no')).toHaveText('✗ 1')
+  await expect(page.locator('.stat-chip.no')).toHaveText('1')
 
   await page.getByRole('button', { name: 'Back to Dashboard' }).click()
   await expect(page.locator('.brand')).toHaveText('Simple.SRS')

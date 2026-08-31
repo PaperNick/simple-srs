@@ -1,3 +1,4 @@
+import { AlarmClock, BookOpen, PenLine, Sparkles } from 'lucide-react'
 import type { DatasetSummary } from '@shared/types'
 
 interface DashboardProps {
@@ -35,9 +36,7 @@ export default function Dashboard({ datasets, onPractice, onLesson, onReview }: 
   if (!datasets.length) {
     return (
       <div className="view">
-        <h1 className="welcome">
-          오늘도 화이팅! <span className="wave">🙌</span>
-        </h1>
+        <h1 className="welcome">오늘도 화이팅!</h1>
         <section className="mode-card empty-card">
           <div className="mode-heading">
             <div>
@@ -65,9 +64,7 @@ export default function Dashboard({ datasets, onPractice, onLesson, onReview }: 
 
   return (
     <div className="view">
-      <h1 className="welcome">
-        오늘도 화이팅! <span className="wave">🙌</span>
-      </h1>
+      <h1 className="welcome">오늘도 화이팅!</h1>
       <p className="subtitle">Simple SRS flashcards, spaced-repetition and practice learning.</p>
 
       {datasets.map(dataset => (
@@ -112,14 +109,14 @@ export default function Dashboard({ datasets, onPractice, onLesson, onReview }: 
                   onClick={() => onLesson(dataset.id)}
                   disabled={dataset.new === 0}
                 >
-                  <span className="btn-icon">📖</span> Start Lesson
+                  <BookOpen size={18} /> Start Lesson
                 </button>
                 <button
                   className="btn btn-secondary"
                   onClick={() => onReview(dataset.id)}
                   disabled={dataset.due === 0}
                 >
-                  <span className="btn-icon">⏰</span> Start Review
+                  <AlarmClock size={18} /> Start Review
                 </button>
               </div>
 
@@ -139,7 +136,7 @@ export default function Dashboard({ datasets, onPractice, onLesson, onReview }: 
           ) : (
             <div className="dashboard-actions">
               <button className="btn btn-primary" onClick={() => onPractice(dataset.id)}>
-                <span className="btn-icon">✍️</span> Practice
+                <PenLine size={18} /> Practice
               </button>
             </div>
           )}

@@ -1,3 +1,4 @@
+import { Volume2 } from 'lucide-react'
 import { itemAudioSrc, playItemAudio } from '../audio'
 import type { Card } from '@shared/types'
 
@@ -20,7 +21,7 @@ export default function PlayAudioButton({ item }: PlayAudioButtonProps) {
       aria-label="Play audio"
       onClick={() => playItemAudio(item)}
     >
-      🔊
+      <Volume2 size={22} />
     </button>
   )
 }

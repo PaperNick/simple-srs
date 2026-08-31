@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Check, Volume2 } from 'lucide-react'
 import { playItemAudio, itemAudioSrc, useAutoplay } from '../audio'
 import { SHORTCUTS, isShortcut } from '../shortcuts'
 import PlayAudioButton from './PlayAudioButton'
@@ -85,7 +86,13 @@ export default function LessonCard({ item, isLast, autoplay, onNext }: LessonCar
           onClick={() => setRevealed(true)}
           disabled={revealed}
         >
-          {revealed ? 'Learning ✔' : 'Reveal'}
+          {revealed ? (
+            <>
+              <Check size={16} /> Learning
+            </>
+          ) : (
+            'Reveal'
+          )}
         </button>
       </div>
 
@@ -173,7 +180,7 @@ export function ItemDetails({ item, defaultOpen = null }: ItemDetailsProps) {
                     aria-label="Play audio"
                     onClick={() => playItemAudio(item)}
                   >
-                    🔊
+                    <Volume2 size={18} />
                   </button>
                 )}
                 <span className="reading-text">{reading}</span>

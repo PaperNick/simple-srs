@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { Check, Flame, X } from 'lucide-react'
 import { getPracticeItems, practiceAnswer } from '../api'
 import { playItemAudio, useAutoplay } from '../audio'
 import { SHORTCUTS, isShortcut } from '../shortcuts'
@@ -241,9 +242,15 @@ export default function Practice({ dataset, autoplay, onStop }: PracticeProps) {
     <div className="view session-view">
       <div className="session-progress practice-stats">
         <span className="stat-chip">#{tally.answered}</span>
-        <span className="stat-chip ok">✓ {tally.correct}</span>
-        <span className="stat-chip no">✗ {tally.wrong}</span>
-        <span className="stat-chip streak">🔥 {tally.streak}</span>
+        <span className="stat-chip ok">
+          <Check size={20} /> {tally.correct}
+        </span>
+        <span className="stat-chip no">
+          <X size={20} /> {tally.wrong}
+        </span>
+        <span className="stat-chip streak">
+          <Flame size={20} /> {tally.streak}
+        </span>
       </div>
 
       <div className={`card ${cardClass}`}>

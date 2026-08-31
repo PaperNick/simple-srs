@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Settings } from 'lucide-react'
 import Dashboard from './components/Dashboard'
 import Session from './components/Session'
 import Practice from './components/Practice'
@@ -117,7 +118,7 @@ export default function App() {
             aria-label="Open settings"
             title="Settings"
           >
-            ⚙️
+            <Settings size={18} />
           </button>
         </div>
       </header>
