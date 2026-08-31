@@ -7,6 +7,8 @@ import type { Card, ReviewCard as ReviewCardType, SessionMode } from '@shared/ty
 interface SessionProps {
   mode: SessionMode
   dataset: string
+  autoplayLesson: boolean
+  autoplayReview: boolean
   onDone: () => void
 }
 
@@ -47,7 +49,13 @@ function lessonSteps(items: Card[]): ReviewCardType[] {
  * Run a lesson or review session over a dataset, stepping through its cards and
  * completing the lesson (if in lesson mode) when the queue is exhausted.
  */
-export default function Session({ mode, dataset, onDone }: SessionProps) {
+export default function Session({
+  mode,
+  dataset,
+  autoplayLesson,
+  autoplayReview,
+  onDone,
+}: SessionProps) {
   const [queue, setQueue] = useState<ReviewCardType[]>([])
   const [index, setIndex] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -161,12 +169,14 @@ export default function Session({ mode, dataset, onDone }: SessionProps) {
           key={current.id + ':' + current.question_type}
           item={current}
           isLast={index === queue.length - 1}
+          autoplay={autoplayLesson}
           onNext={next}
         />
       ) : (
         <ReviewCard
           key={current.id + ':' + current.question_type}
           item={current}
+          autoplay={autoplayReview}
           onMissed={reQueue}
           onNext={next}
         />

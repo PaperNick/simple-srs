@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import type { Card } from '@shared/types'
 
 /** Unified audio access: each item carries its own `audio` path. */
@@ -31,4 +32,13 @@ export function playItemAudio(item: Card | null): boolean {
   audioElement.src = source
   audioElement.play().catch(() => {})
   return true
+}
+
+/** Play an item's audio whenever `enabled` flips true (used for auto-play). */
+export function useAutoplay(item: Card | null, enabled: boolean): void {
+  useEffect(() => {
+    if (enabled) {
+      playItemAudio(item)
+    }
+  }, [item, enabled])
 }

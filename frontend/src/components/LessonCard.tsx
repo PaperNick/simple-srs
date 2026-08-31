@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { playItemAudio, itemAudioSrc } from '../audio'
+import { playItemAudio, itemAudioSrc, useAutoplay } from '../audio'
 import { SHORTCUTS, isShortcut } from '../shortcuts'
 import PlayAudioButton from './PlayAudioButton'
 import ShortcutHints from './ShortcutHints'
@@ -8,6 +8,7 @@ import type { Card, ReviewCard } from '@shared/types'
 interface LessonCardProps {
   item: ReviewCard
   isLast: boolean
+  autoplay: boolean
   onNext: () => void
 }
 
@@ -20,7 +21,7 @@ interface ItemDetailsProps {
  * Show a single lesson card: reveal the answer, then continue to the next step
  * (or finish the lesson on the last step).
  */
-export default function LessonCard({ item, isLast, onNext }: LessonCardProps) {
+export default function LessonCard({ item, isLast, autoplay, onNext }: LessonCardProps) {
   const [revealed, setRevealed] = useState(false)
   const isMeaning = item.question_type === 'meaning'
   const isSelfGrade = item.question_type === 'self-grade'
@@ -48,6 +49,9 @@ export default function LessonCard({ item, isLast, onNext }: LessonCardProps) {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [advance])
+
+  // Auto-play audio on non-Meaning (Reading/self-grade) cards when revealed.
+  useAutoplay(item, revealed && autoplay && item.question_type !== 'meaning')
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {

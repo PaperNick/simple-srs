@@ -23,7 +23,7 @@ export type QuestionType = 'reading' | 'meaning' | 'self-grade'
 export type SessionMode = 'lesson' | 'review'
 
 /** The UI colour theme. */
-export type Theme = 'dark' | 'light'
+export type Theme = 'dark' | 'light' | 'system'
 
 /** A single entry in `data/datasets.json` (one deck). */
 export interface DatasetConfig {

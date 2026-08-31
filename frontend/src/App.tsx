@@ -2,16 +2,36 @@ import { useCallback, useEffect, useState } from 'react'
 import Dashboard from './components/Dashboard'
 import Session from './components/Session'
 import Practice from './components/Practice'
+import SettingsModal from './components/SettingsModal'
 import { getDatasets } from './api'
 import type { DatasetSummary, SessionMode, Theme } from '@shared/types'
 
 type View = 'dashboard' | 'session' | 'practice'
 
 const THEME_KEY = 'simplesrs-theme'
+const AUTOPLAY_LESSON_KEY = 'simplesrs-autoplay-lesson'
+const AUTOPLAY_REVIEW_KEY = 'simplesrs-autoplay-review'
 
-/** Resolve the initial theme from the OS color-scheme preference. */
-const systemTheme = (): Theme =>
-  window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+/** Whether the OS prefers a dark colour scheme. */
+const prefersDark = (): boolean => window.matchMedia('(prefers-color-scheme: dark)').matches
+
+/** Resolve the effective light/dark theme for a stored theme choice. */
+const effectiveTheme = (theme: Theme, systemDark: boolean): 'dark' | 'light' => {
+  if (theme === 'system') {
+    return systemDark ? 'dark' : 'light'
+  }
+  return theme
+}
+
+/** Read/write a boolean flag persisted in localStorage as 'on'/'off'. */
+function useStoredFlag(key: string): [boolean, (next: boolean) => void] {
+  const [value, setValue] = useState(() => window.localStorage.getItem(key) === 'on')
+  const set = (next: boolean) => {
+    window.localStorage.setItem(key, next ? 'on' : 'off')
+    setValue(next)
+  }
+  return [value, set]
+}
 
 /**
  * Root component: holds the current view (dashboard / session / practice), the
@@ -24,29 +44,32 @@ export default function App() {
   const [sessionKey, setSessionKey] = useState(0)
   const [currentDataset, setCurrentDataset] = useState<string | null>(null)
   const [error, setError] = useState('')
-  // Resolve the initial theme: saved choice, else the OS preference.
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [systemDark, setSystemDark] = useState<boolean>(prefersDark)
   const [theme, setTheme] = useState<Theme>(() => {
     const saved = window.localStorage.getItem(THEME_KEY)
-    return saved === 'dark' || saved === 'light' ? saved : systemTheme()
+    return saved === 'dark' || saved === 'light' || saved === 'system' ? saved : 'system'
   })
 
-  // Follow the OS theme unless the user has made an explicit choice.
+  // Separate auto-play toggles for lesson and review items.
+  const [autoplayLesson, setAutoplayLesson] = useStoredFlag(AUTOPLAY_LESSON_KEY)
+  const [autoplayReview, setAutoplayReview] = useStoredFlag(AUTOPLAY_REVIEW_KEY)
+
+  // Follow the OS colour-scheme so the 'system' theme tracks changes.
   useEffect(() => {
-    if (window.localStorage.getItem(THEME_KEY)) {
-      return
-    }
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = (event: MediaQueryListEvent) => setTheme(event.matches ? 'dark' : 'light')
+    const onChange = (event: MediaQueryListEvent) => setSystemDark(event.matches)
     mediaQuery.addEventListener('change', onChange)
     return () => mediaQuery.removeEventListener('change', onChange)
   }, [])
 
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
-  }, [theme])
+  const themeMode = effectiveTheme(theme, systemDark)
 
-  const toggleTheme = () => {
-    const next: Theme = theme === 'dark' ? 'light' : 'dark'
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', themeMode === 'dark')
+  }, [themeMode])
+
+  const selectTheme = (next: Theme) => {
     window.localStorage.setItem(THEME_KEY, next)
     setTheme(next)
   }
@@ -90,11 +113,11 @@ export default function App() {
         <div className="topbar-actions">
           <button
             className="ghost-btn"
-            onClick={toggleTheme}
-            aria-label="Toggle theme"
-            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Open settings"
+            title="Settings"
           >
-            {theme === 'dark' ? '☀️' : '🌙'}
+            ⚙️
           </button>
         </div>
       </header>
@@ -113,11 +136,17 @@ export default function App() {
             key={sessionKey}
             dataset={currentDataset ?? ''}
             mode={sessionMode}
+            autoplayLesson={autoplayLesson}
+            autoplayReview={autoplayReview}
             onDone={backToDashboard}
           />
         )}
         {view === 'practice' && (
-          <Practice dataset={currentDataset ?? ''} onStop={backToDashboard} />
+          <Practice
+            dataset={currentDataset ?? ''}
+            autoplay={autoplayReview}
+            onStop={backToDashboard}
+          />
         )}
       </main>
 
@@ -126,6 +155,17 @@ export default function App() {
           {error}
         </div>
       )}
+
+      <SettingsModal
+        open={settingsOpen}
+        theme={theme}
+        autoplayLesson={autoplayLesson}
+        autoplayReview={autoplayReview}
+        onSelectTheme={selectTheme}
+        onSetAutoplayLesson={setAutoplayLesson}
+        onSetAutoplayReview={setAutoplayReview}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
   )
 }

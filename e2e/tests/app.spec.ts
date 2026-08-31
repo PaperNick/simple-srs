@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import type { Page } from '@playwright/test'
+import type { Page, Response } from '@playwright/test'
 
 /**
  * The app mutates its SQLite DB as tests run, and the flows build on each other
@@ -32,6 +32,47 @@ async function completeLesson(page: Page): Promise<void> {
       break
     }
   }
+}
+
+const HANGUL_AUDIO = /\/static\/audio\/korean\/hangul\/.+\.mp3$/
+const WORD_AUDIO = /\/static\/audio\/korean\/word\/.+\.mp3$/
+const AUTOPLAY_REVIEW = 'simplesrs-autoplay-review'
+const AUTOPLAY_LESSON = 'simplesrs-autoplay-lesson'
+
+/** Set an autoplay preference in localStorage before the app boots (default is off). */
+async function enableAutoplay(page: Page, storageKey: string): Promise<void> {
+  await page.addInitScript((key: string) => {
+    ;(globalThis as { localStorage: Storage }).localStorage.setItem(key, 'on')
+  }, storageKey)
+}
+
+/** Wait for an audio request matching `regex` to fire and return the response. */
+function waitForAudio(page: Page, regex: RegExp) {
+  return page.waitForResponse(res => regex.test(res.url()))
+}
+
+/** Count audio requests matching `regex` as they fire. */
+function trackAudio(page: Page, regex: RegExp) {
+  let count = 0
+  const listener = (res: Response) => {
+    if (regex.test(res.url())) {
+      count++
+    }
+  }
+  page.on('response', listener)
+  return {
+    count: () => count,
+    stop: () => page.off('response', listener),
+  }
+}
+
+/** Map each hangul character to its accepted readings. */
+async function getHangulReadingsByChar(page: Page): Promise<Record<string, string[]>> {
+  const { items } = await getJson<{ items: Array<{ characters: string; readings: string[] }> }>(
+    page,
+    '/api/practice/items?dataset=hangul'
+  )
+  return Object.fromEntries(items.map(i => [i.characters, i.readings]))
 }
 
 test('dashboard lists each dataset as its own card', async ({ page }) => {
@@ -132,7 +173,8 @@ test('theme toggle does not reset the current practice item', async ({ page }) =
     .click()
   const charBefore = await page.locator('.banner-char').textContent()
 
-  await page.getByRole('button', { name: 'Toggle theme' }).click()
+  await page.getByRole('button', { name: 'Open settings' }).click()
+  await page.getByRole('button', { name: 'Light' }).click()
 
   const charAfter = await page.locator('.banner-char').textContent()
   expect(charAfter).toBe(charBefore)
@@ -145,7 +187,8 @@ test('theme: auto-detects OS preference and toggles', async ({ page }) => {
   await expect(page.locator('html')).toHaveClass(/dark/)
 
   // Toggle to light -> persisted, so it survives a reload even though the OS is dark
-  await page.getByRole('button', { name: 'Toggle theme' }).click()
+  await page.getByRole('button', { name: 'Open settings' }).click()
+  await page.getByRole('button', { name: 'Light' }).click()
   await expect(page.locator('html')).not.toHaveClass(/dark/)
   await page.reload()
   await expect(page.locator('html')).not.toHaveClass(/dark/)
@@ -153,10 +196,7 @@ test('theme: auto-detects OS preference and toggles', async ({ page }) => {
 
 test('alphabet practice: grading, tally, input clears, Enter advances, stop', async ({ page }) => {
   await page.goto('/')
-  const { items } = await getJson<{
-    items: Array<{ characters: string; readings: string[] }>
-  }>(page, '/api/practice/items?dataset=hangul')
-  const readingsByChar = Object.fromEntries(items.map(i => [i.characters, i.readings]))
+  const readingsByChar = await getHangulReadingsByChar(page)
 
   await page
     .getByRole('button', { name: /Practice/ })
@@ -182,9 +222,7 @@ test('alphabet practice: grading, tally, input clears, Enter advances, stop', as
   await expect(page.locator('.banner-audio-btn')).toBeVisible()
 
   // Pressing "p" plays the character audio (first play -> real request).
-  const pAudioPromise = page.waitForResponse(res =>
-    /\/static\/audio\/korean\/hangul\/.+\.mp3$/.test(res.url())
-  )
+  const pAudioPromise = waitForAudio(page, HANGUL_AUDIO)
   await page.keyboard.press('p')
   const pAudioRes = await pAudioPromise
   expect(pAudioRes.ok()).toBeTruthy()
@@ -280,15 +318,91 @@ test('practice: play button appears after answering', async ({ page }) => {
   const play = page.locator('.banner-audio-btn')
   await expect(play).toBeVisible()
 
-  const audioPromise = page.waitForResponse(res =>
-    /\/static\/audio\/korean\/hangul\/.+\.mp3$/.test(res.url())
-  )
+  const audioPromise = waitForAudio(page, HANGUL_AUDIO)
   await play.click()
   const audioRes = await audioPromise
   expect(audioRes.ok()).toBeTruthy()
 
   await page.getByRole('button', { name: 'Back to Dashboard' }).click()
   await expect(page.locator('.brand')).toHaveText('Simple.SRS')
+})
+
+test('practice: auto-plays audio after answering when autoplay is enabled', async ({ page }) => {
+  // Enable auto-play before the app boots, so it reads "on" from storage.
+  await enableAutoplay(page, AUTOPLAY_REVIEW)
+  await page.goto('/')
+
+  const readingsByChar = await getHangulReadingsByChar(page)
+
+  await page
+    .getByRole('button', { name: /Practice/ })
+    .first()
+    .click()
+
+  const firstChar = (await page.locator('.banner-char').textContent())!.trim()
+  expect(readingsByChar[firstChar]).toBeTruthy()
+
+  // Answer the card; with autoplay on the audio request fires without pressing "p".
+  const audioPromise = waitForAudio(page, HANGUL_AUDIO)
+  await page.locator('.answer-input').fill(readingsByChar[firstChar][0])
+  await page.getByRole('button', { name: 'Enter' }).click()
+
+  const audioRes = await audioPromise
+  expect(audioRes.ok()).toBeTruthy()
+
+  await page.getByRole('button', { name: 'Back to Dashboard' }).click()
+})
+
+test('practice: self-grade cards auto-play audio when autoplay is enabled', async ({ page }) => {
+  await enableAutoplay(page, AUTOPLAY_REVIEW)
+  await page.goto('/')
+
+  // "Hangul - Seen" cards have no readings/meanings (self-grade) but do carry audio.
+  const card = page.locator('.mode-card', { hasText: 'Hangul - Seen' })
+  await card.getByRole('button', { name: 'Practice' }).click()
+  await expect(page.locator('.answer-input')).toHaveCount(0) // self-grade card
+
+  // Self-grading ("Got it") fires the audio request automatically (no "p" pressed).
+  const audioPromise = waitForAudio(page, HANGUL_AUDIO)
+  await page.getByRole('button', { name: 'Got it' }).click()
+
+  const audioRes = await audioPromise
+  expect(audioRes.ok()).toBeTruthy()
+})
+
+test('word lesson: auto-plays word audio only on the Reading step, not Meaning', async ({
+  page,
+}) => {
+  await enableAutoplay(page, AUTOPLAY_LESSON)
+  await page.goto('/')
+
+  const lesson = await getJson<{ items: Array<{ audio: string | null }> }>(
+    page,
+    '/api/lesson/start?dataset=words'
+  )
+  expect(lesson.items.length).toBeGreaterThan(0)
+  if (!lesson.items[0].audio) {
+    return // nothing to verify if the first word has no audio
+  }
+
+  await page.getByRole('button', { name: /Start Lesson/ }).click()
+
+  // Track any word-audio requests fired during the lesson.
+  const audio = trackAudio(page, WORD_AUDIO)
+
+  // Step 1 is a Meaning prompt (the lesson teaches meaning, then reading).
+  await expect(page.locator('.subtitle-bar')).toContainText('Meaning')
+  await page.getByRole('button', { name: 'Reveal' }).click()
+  await page.waitForTimeout(400)
+  expect(audio.count()).toBe(0) // no autoplay on a Meaning card
+
+  // Continue to the Reading step: auto-play should now fire.
+  await page.getByRole('button', { name: /Continue/ }).click()
+  await expect(page.locator('.subtitle-bar')).toContainText('Reading')
+  await page.getByRole('button', { name: 'Reveal' }).click()
+  await expect.poll(() => audio.count()).toBeGreaterThan(0)
+
+  audio.stop()
 })
 
 test('word lesson: pressing "p" plays the word audio after reveal', async ({ page }) => {
@@ -304,9 +418,7 @@ test('word lesson: pressing "p" plays the word audio after reveal', async ({ pag
 
   await page.getByRole('button', { name: /Start Lesson/ }).click()
   await page.getByRole('button', { name: 'Reveal' }).click()
-  const pAudioPromise = page.waitForResponse(res =>
-    /\/static\/audio\/korean\/word\/.+\.mp3$/.test(res.url())
-  )
+  const pAudioPromise = waitForAudio(page, WORD_AUDIO)
   await page.keyboard.press('p')
   const pAudioRes = await pAudioPromise
   expect(pAudioRes.ok()).toBeTruthy()
@@ -336,6 +448,101 @@ test('word lesson walks meaning + reading steps and completes', async ({ page })
   expect(words!.learning).toBeGreaterThan(0)
   // the number of lesson steps we walked matches the words we learned
   expect(words!.learning).toBeGreaterThanOrEqual(expectedSteps / 2)
+})
+
+test('word review: auto-plays word audio only when prompted for Reading, not Meaning', async ({
+  page,
+}) => {
+  await enableAutoplay(page, AUTOPLAY_REVIEW)
+  await page.goto('/')
+
+  // The preceding "lesson walks" test completed a lesson, so the words it learned
+  // are now due. This test reuses those due items (it does NOT run its own lesson,
+  // because the 10-word seed only supports two full lessons in this serial suite).
+  await expect(page.getByRole('button', { name: /Start Review/ })).toBeEnabled()
+
+  // Only some words carry audio. Pin the question types so the queue
+  // deterministically contains a Reading card AND a Meaning card that both have
+  // audio (otherwise we can't reliably observe autoplay vs no autoplay).
+  const { due } = await getJson<{
+    due: Array<{ characters: string; meanings: string[]; readings: string[]; audio: string | null }>
+  }>(page, '/api/review/start?dataset=words')
+  expect(due.length).toBeGreaterThan(0)
+  expect(due.filter(d => d.audio).length).toBeGreaterThanOrEqual(2)
+
+  let pinnedReading = false
+  let pinnedMeaning = false
+  const pinned = due.map(d => {
+    if (d.audio && !pinnedReading) {
+      pinnedReading = true
+      return { ...d, question_type: 'reading' }
+    }
+    if (d.audio && !pinnedMeaning) {
+      pinnedMeaning = true
+      return { ...d, question_type: 'meaning' }
+    }
+    return { ...d, question_type: d.readings.length > 0 ? 'reading' : 'meaning' }
+  })
+  await page.route(/\/api\/review\/start/, route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ due: pinned }),
+    })
+  )
+
+  await page.getByRole('button', { name: /Start Review/ }).click()
+
+  // Track any word-audio requests fired during review.
+  const audio = trackAudio(page, WORD_AUDIO)
+
+  // Walk the (client-shuffled) queue: a Meaning prompt must NOT autoplay, a
+  // Reading one must. Only cards that actually have audio can prove either.
+  let sawReadingAutoplay = false
+  let sawMeaningQuiet = false
+  for (let index = 0; index < pinned.length; index++) {
+    const subtitle = (await page.locator('.subtitle-bar').textContent())!
+    const displayedChar = (await page.locator('.banner-char').textContent())!.trim()
+    const item = pinned.find(d => d.characters === displayedChar)
+    if (!item) {
+      throw new Error(`Could not find a pinned review card for "${displayedChar}"`)
+    }
+
+    const isReading = /Reading/.test(subtitle)
+    const answer = isReading ? item.readings[0] : item.meanings[0]
+
+    const before = audio.count()
+    await page.locator('.answer-input').fill(answer)
+    await page.getByRole('button', { name: 'Enter' }).click()
+    // Wait for grading to finish (the result bar signals the card was answered).
+    await expect(page.locator('.result-bar')).toBeVisible()
+
+    // Only cards with audio can produce an auditable request either way.
+    if (item.audio) {
+      if (isReading) {
+        // Auto-play fires on a Reading card: wait for the audio request.
+        await expect.poll(() => audio.count() - before, { timeout: 5_000 }).toBeGreaterThan(0)
+        sawReadingAutoplay = true
+      } else {
+        // A Meaning card never auto-plays: give any stray request time to show up.
+        await page.waitForTimeout(200)
+        expect(audio.count() - before).toBe(0)
+        sawMeaningQuiet = true
+      }
+    }
+
+    if (sawReadingAutoplay && sawMeaningQuiet) {
+      break
+    }
+
+    // Advance to the next card.
+    await page.locator('.banner').click()
+    await page.keyboard.press('Enter')
+  }
+
+  audio.stop()
+  expect(sawReadingAutoplay).toBe(true)
+  expect(sawMeaningQuiet).toBe(true)
 })
 
 test('word review: grading by meaning/reading, Enter to continue', async ({ page }) => {
@@ -378,9 +585,7 @@ test('word review: grading by meaning/reading, Enter to continue', async ({ page
 
   // Pressing "p" plays the word audio (only words that have audio).
   if (item!.audio) {
-    const pAudioPromise = page.waitForResponse(res =>
-      /\/static\/audio\/korean\/word\/.+\.mp3$/.test(res.url())
-    )
+    const pAudioPromise = waitForAudio(page, WORD_AUDIO)
     await page.keyboard.press('p')
     const pAudioRes = await pAudioPromise
     expect(pAudioRes.ok()).toBeTruthy()

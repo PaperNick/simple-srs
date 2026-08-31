@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { getPracticeItems, practiceAnswer } from '../api'
-import { playItemAudio } from '../audio'
+import { playItemAudio, useAutoplay } from '../audio'
 import { SHORTCUTS, isShortcut } from '../shortcuts'
 import AnswerInput from './AnswerInput'
 import { ItemDetails } from './LessonCard'
@@ -20,6 +20,7 @@ interface Tally {
 
 interface PracticeProps {
   dataset: string
+  autoplay: boolean
   onStop: () => void
 }
 
@@ -39,7 +40,7 @@ function shuffle<T>(array: T[]): T[] {
  * Run the endless practice session: shuffle the items, grade each
  * reading, keep a running tally and loop forever until the user stops.
  */
-export default function Practice({ dataset, onStop }: PracticeProps) {
+export default function Practice({ dataset, autoplay, onStop }: PracticeProps) {
   const allRef = useRef<Card[]>([]) // full item set
   const sequenceRef = useRef<Card[]>([]) // endless rotation
   const positionRef = useRef(0) // current position in rotation
@@ -111,6 +112,9 @@ export default function Practice({ dataset, onStop }: PracticeProps) {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [phase, current])
+
+  // Auto-play the character audio once the card has been answered, when enabled.
+  useAutoplay(current, phase === 'result' && autoplay)
 
   const submit = async () => {
     const input = value

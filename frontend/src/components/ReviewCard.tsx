@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { reviewAnswer } from '../api'
-import { playItemAudio } from '../audio'
+import { playItemAudio, useAutoplay } from '../audio'
 import { SHORTCUTS, isShortcut } from '../shortcuts'
 import AnswerInput from './AnswerInput'
 import { ItemDetails } from './LessonCard'
@@ -18,6 +18,7 @@ interface Result {
 
 interface ReviewCardProps {
   item: ReviewCardType
+  autoplay: boolean
   onMissed: () => void
   onNext: () => void
 }
@@ -26,7 +27,7 @@ interface ReviewCardProps {
  * Show a single review card: grade the typed answer, then continue or re-queue
  * the item. Supports meaning and reading prompts.
  */
-export default function ReviewCard({ item, onMissed, onNext }: ReviewCardProps) {
+export default function ReviewCard({ item, autoplay, onMissed, onNext }: ReviewCardProps) {
   const [phase, setPhase] = useState<'input' | 'result'>('input')
   const [result, setResult] = useState<Result | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -142,6 +143,9 @@ export default function ReviewCard({ item, onMissed, onNext }: ReviewCardProps) 
       inputRef.current.focus()
     }
   }, [phase])
+
+  // Auto-play audio on non-Meaning (Reading/self-grade) cards when answered.
+  useAutoplay(item, phase === 'result' && autoplay && item.question_type !== 'meaning')
 
   // "p" plays the word audio once the card has been answered.
   useEffect(() => {
