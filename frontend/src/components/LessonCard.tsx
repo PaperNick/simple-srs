@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { playItemAudio, itemAudioSrc } from '../audio'
 import { SHORTCUTS, isShortcut } from '../shortcuts'
+import PlayAudioButton from './PlayAudioButton'
 import ShortcutHints from './ShortcutHints'
 import type { Card, ReviewCard } from '@shared/types'
 
@@ -68,6 +69,7 @@ export default function LessonCard({ item, isLast, onNext }: LessonCardProps) {
     >
       <div className="banner tall">
         <div className="banner-char">{item.characters}</div>
+        {revealed && <PlayAudioButton item={item} />}
       </div>
       <div className="subtitle-bar">{label}</div>
 
