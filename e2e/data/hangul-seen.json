@@ -1,4 +1,14 @@
 [
-  { "type": "character", "characters": "ㄱ", "level": 1, "audio": "/static/audio/korean/hangul/3131.mp3" },
-  { "type": "character", "characters": "ㄴ", "level": 1, "audio": "/static/audio/korean/hangul/3134.mp3" }
+  {
+    "type": "character",
+    "characters": "ㄱ",
+    "level": 1,
+    "audio": "/static/audio/korean/hangul/3131.mp3"
+  },
+  {
+    "type": "character",
+    "characters": "ㄴ",
+    "level": 1,
+    "audio": "/static/audio/korean/hangul/3134.mp3"
+  }
 ]

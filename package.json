@@ -16,11 +16,11 @@
     "typecheck:frontend": "npm --prefix frontend run typecheck",
     "typecheck:e2e": "npm --prefix e2e run typecheck",
     "format": "npm run format:root && npm run format:shared && npm run format:backend && npm run format:frontend && npm run format:e2e",
-    "format:root": "prettier --write '*.{js,mjs,cjs,ts}'",
-    "format:shared": "prettier --write 'shared/**/*.ts'",
-    "format:backend": "prettier --write 'backend/**/*.{js,jsx,mjs,cjs,ts,tsx}'",
-    "format:frontend": "prettier --write 'frontend/**/*.{js,jsx,mjs,cjs,ts,tsx}'",
-    "format:e2e": "prettier --write 'e2e/**/*.{js,jsx,mjs,cjs,ts,tsx}'",
+    "format:root": "prettier --write '*.{js,mjs,cjs,ts,css,html,json}'",
+    "format:shared": "prettier --write 'shared/**/*.{ts,css,html,json}'",
+    "format:backend": "prettier --write 'backend/**/*.{js,jsx,mjs,cjs,ts,tsx,css,html,json}'",
+    "format:frontend": "prettier --write 'frontend/**/*.{js,jsx,mjs,cjs,ts,tsx,css,html,json}'",
+    "format:e2e": "prettier --write 'e2e/**/*.{js,jsx,mjs,cjs,ts,tsx,css,html,json}'",
     "prepare": "husky"
   },
   "devDependencies": {

@@ -2,125 +2,81 @@
   {
     "type": "vocabulary",
     "characters": "가능성",
-    "readings": [
-      "ganeungseong"
-    ],
+    "readings": ["ganeungseong"],
     "level": 1,
     "audio": "/static/audio/korean/word/0474.mp3",
-    "meanings": [
-      "Possibility"
-    ]
+    "meanings": ["Possibility"]
   },
   {
     "type": "vocabulary",
     "characters": "가다",
-    "readings": [
-      "gada"
-    ],
+    "readings": ["gada"],
     "level": 1,
     "audio": "/static/audio/korean/word/0151.mp3",
-    "meanings": [
-      "To go"
-    ]
+    "meanings": ["To go"]
   },
   {
     "type": "vocabulary",
     "characters": "가슴",
-    "readings": [
-      "gaseum"
-    ],
+    "readings": ["gaseum"],
     "level": 1,
     "audio": "/static/audio/korean/word/0382.mp3",
-    "meanings": [
-      "Chest"
-    ]
+    "meanings": ["Chest"]
   },
   {
     "type": "vocabulary",
     "characters": "가운데",
-    "readings": [
-      "gaunde"
-    ],
+    "readings": ["gaunde"],
     "level": 1,
     "audio": null,
-    "meanings": [
-      "In the middle"
-    ]
+    "meanings": ["In the middle"]
   },
   {
     "type": "vocabulary",
     "characters": "가장",
-    "readings": [
-      "gajang"
-    ],
+    "readings": ["gajang"],
     "level": 1,
     "audio": null,
-    "meanings": [
-      "Most"
-    ]
+    "meanings": ["Most"]
   },
   {
     "type": "vocabulary",
     "characters": "가족",
-    "readings": [
-      "gajok"
-    ],
+    "readings": ["gajok"],
     "level": 1,
     "audio": null,
-    "meanings": [
-      "Family"
-    ]
+    "meanings": ["Family"]
   },
   {
     "type": "vocabulary",
     "characters": "가지",
-    "readings": [
-      "gaji"
-    ],
+    "readings": ["gaji"],
     "level": 1,
     "audio": null,
-    "meanings": [
-      "One of the kind",
-      "a sort"
-    ]
+    "meanings": ["One of the kind", "a sort"]
   },
   {
     "type": "vocabulary",
     "characters": "가지다",
-    "readings": [
-      "gajida"
-    ],
+    "readings": ["gajida"],
     "level": 1,
     "audio": null,
-    "meanings": [
-      "To have",
-      "take",
-      "hold"
-    ]
+    "meanings": ["To have", "take", "hold"]
   },
   {
     "type": "vocabulary",
     "characters": "각",
-    "readings": [
-      "gak"
-    ],
+    "readings": ["gak"],
     "level": 1,
     "audio": null,
-    "meanings": [
-      "Each",
-      "every"
-    ]
+    "meanings": ["Each", "every"]
   },
   {
     "type": "vocabulary",
     "characters": "간",
-    "readings": [
-      "gan"
-    ],
+    "readings": ["gan"],
     "level": 1,
     "audio": null,
-    "meanings": [
-      "The interval between"
-    ]
+    "meanings": ["The interval between"]
   }
 ]
