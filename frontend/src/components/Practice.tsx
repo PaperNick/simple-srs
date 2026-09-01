@@ -324,7 +324,7 @@ export default function Practice({ dataset, autoplay, markCorrect, onStop }: Pra
         <div className="action-row">
           {phase === 'input' ? (
             hasAnswer ? (
-              <button className="skip-btn" onClick={reveal}>
+              <button className="dont-know-btn" onClick={reveal}>
                 Show
               </button>
             ) : (

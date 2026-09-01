@@ -73,7 +73,8 @@ export default function ReviewCard({
     setPhase('result')
   }
 
-  const skip = () => {
+  // Reveal the answer and treat the card as a miss (resets the item's stage).
+  const dontKnow = () => {
     setResult({ correct: false, expected: expected(item), item, revealed: true })
     setPhase('result')
   }
@@ -241,8 +242,8 @@ export default function ReviewCard({
           isSelfGrade ? (
             <SelfGradeHints />
           ) : (
-            <button className="skip-btn" onClick={skip}>
-              Skip
+            <button className="dont-know-btn" onClick={dontKnow}>
+              Don't know
             </button>
           )
         ) : showMarkCorrect ? (

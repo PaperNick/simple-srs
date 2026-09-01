@@ -325,8 +325,8 @@ body {
   padding: 14px 22px;
   background: var(--card-bg-2);
 }
-.skip-btn { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 15px; }
-.skip-btn:hover { color: var(--ink); text-decoration: underline; }
+.dont-know-btn { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 15px; }
+.dont-know-btn:hover { color: var(--ink); text-decoration: underline; }
 .mark-correct-btn {
   border: none;
   background: none;
