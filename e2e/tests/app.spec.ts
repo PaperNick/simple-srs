@@ -254,6 +254,29 @@ test('alphabet practice: grading, tally, input clears, Enter advances, stop', as
   await expect(page.locator('.brand')).toHaveText('Simple.SRS')
 })
 
+test('practice: Mark Correct overrides a wrong answer when enabled', async ({ page }) => {
+  await page.addInitScript((key: string) => {
+    ;(globalThis as { localStorage: Storage }).localStorage.setItem(key, 'on')
+  }, 'simplesrs-mark-correct')
+  await page.goto('/')
+
+  await page
+    .getByRole('button', { name: /Practice/ })
+    .first()
+    .click()
+
+  // Type a deliberately wrong answer so the card is graded incorrect.
+  await page.locator('.answer-input').fill('zzzzzz')
+  await page.getByRole('button', { name: 'Enter' }).click()
+  await expect(page.locator('.result-bar')).toHaveClass(/red/)
+
+  // The override button appears; clicking it flips the result and the tally.
+  await page.getByRole('button', { name: 'Mark Correct' }).click()
+  await expect(page.locator('.result-bar')).toHaveClass(/green/)
+  await expect(page.locator('.stat-chip.ok')).toHaveText('1')
+  await expect(page.locator('.stat-chip.no')).toHaveText('0')
+})
+
 test('practice: self-grade cards accept/reject via button click', async ({ page }) => {
   await page.goto('/')
 

@@ -327,6 +327,17 @@ body {
 }
 .skip-btn { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 15px; }
 .skip-btn:hover { color: var(--ink); text-decoration: underline; }
+.mark-correct-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--result-green-1);
+  font-size: 15px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .next-btn {
   border: none; cursor: pointer; border-radius: 8px;
   background: var(--night); color: #fff; font-weight: 700;

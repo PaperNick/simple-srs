@@ -18,7 +18,7 @@ interface WindowThumbProps {
   theme: 'light' | 'dark' | 'split'
 }
 
-interface AudioToggleProps {
+interface ToggleRowProps {
   title: string
   description: string
   checked: boolean
@@ -30,9 +30,11 @@ interface SettingsModalProps {
   theme: Theme
   autoplayLesson: boolean
   autoplayReview: boolean
+  markCorrect: boolean
   onSelectTheme: (theme: Theme) => void
   onSetAutoplayLesson: (autoplay: boolean) => void
   onSetAutoplayReview: (autoplay: boolean) => void
+  onSetMarkCorrect: (markCorrect: boolean) => void
   onClose: () => void
 }
 
@@ -77,8 +79,8 @@ function WindowThumb({ theme }: WindowThumbProps) {
   )
 }
 
-/** A labelled auto-play toggle */
-function AudioToggle({ title, description, checked, onChange }: AudioToggleProps) {
+/** A labelled toggle switch. */
+function ToggleRow({ title, description, checked, onChange }: ToggleRowProps) {
   return (
     <div className="toggle-row">
       <div className="toggle-text">
@@ -112,9 +114,11 @@ export default function SettingsModal({
   theme,
   autoplayLesson,
   autoplayReview,
+  markCorrect,
   onSelectTheme,
   onSetAutoplayLesson,
   onSetAutoplayReview,
+  onSetMarkCorrect,
   onClose,
 }: SettingsModalProps) {
   if (!open) {
@@ -154,17 +158,23 @@ export default function SettingsModal({
 
         <div className="modal-section">
           <div className="toggle-group">
-            <AudioToggle
+            <ToggleRow
               title="Auto-play audio · Lesson"
               description="Play each card's audio as soon as you reveal it."
               checked={autoplayLesson}
               onChange={onSetAutoplayLesson}
             />
-            <AudioToggle
+            <ToggleRow
               title="Auto-play audio · Review"
               description="Play a Review card's audio after you answer it. Only on Reading cards that have audio."
               checked={autoplayReview}
               onChange={onSetAutoplayReview}
+            />
+            <ToggleRow
+              title="Mark Correct"
+              description="Show a button to mark a mistyped answer correct after grading."
+              checked={markCorrect}
+              onChange={onSetMarkCorrect}
             />
           </div>
         </div>

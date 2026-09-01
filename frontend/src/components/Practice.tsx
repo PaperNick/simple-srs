@@ -22,6 +22,7 @@ interface Tally {
 interface PracticeProps {
   dataset: string
   autoplay: boolean
+  markCorrect: boolean
   onStop: () => void
 }
 
@@ -41,7 +42,7 @@ function shuffle<T>(array: T[]): T[] {
  * Run the endless practice session: shuffle the items, grade each
  * reading, keep a running tally and loop forever until the user stops.
  */
-export default function Practice({ dataset, autoplay, onStop }: PracticeProps) {
+export default function Practice({ dataset, autoplay, markCorrect, onStop }: PracticeProps) {
   const allRef = useRef<Card[]>([]) // full item set
   const sequenceRef = useRef<Card[]>([]) // endless rotation
   const positionRef = useRef(0) // current position in rotation
@@ -184,6 +185,17 @@ export default function Practice({ dataset, autoplay, onStop }: PracticeProps) {
     }
   }
 
+  const markAsCorrect = () => {
+    setResult(previous =>
+      previous && !previous.revealed ? { ...previous, correct: true } : previous
+    )
+    setTally(previous => ({
+      ...previous,
+      correct: previous.correct + 1,
+      wrong: previous.wrong - 1,
+    }))
+  }
+
   const onKey = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (phase === 'input' && isShortcut(event, SHORTCUTS.submit)) {
       submit()
@@ -237,6 +249,13 @@ export default function Practice({ dataset, autoplay, onStop }: PracticeProps) {
   const hasAnswer = current.readings.length > 0
   const correct = result ? result.correct : null
   const cardClass = phase === 'result' ? (correct ? 'result-correct' : 'result-incorrect') : ''
+  const showMarkCorrect =
+    markCorrect &&
+    hasAnswer &&
+    phase === 'result' &&
+    !!result &&
+    !result.correct &&
+    !result.revealed
 
   return (
     <div className="view session-view">
@@ -311,6 +330,10 @@ export default function Practice({ dataset, autoplay, onStop }: PracticeProps) {
             ) : (
               <SelfGradeHints />
             )
+          ) : showMarkCorrect ? (
+            <button className="mark-correct-btn" onClick={markAsCorrect}>
+              <Check size={16} /> Mark Correct
+            </button>
           ) : (
             <ShortcutHints />
           )}

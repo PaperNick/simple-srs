@@ -12,6 +12,7 @@ type View = 'dashboard' | 'session' | 'practice'
 const THEME_KEY = 'simplesrs-theme'
 const AUTOPLAY_LESSON_KEY = 'simplesrs-autoplay-lesson'
 const AUTOPLAY_REVIEW_KEY = 'simplesrs-autoplay-review'
+const MARK_CORRECT_KEY = 'simplesrs-mark-correct'
 
 /** Whether the OS prefers a dark colour scheme. */
 const prefersDark = (): boolean => window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -55,6 +56,7 @@ export default function App() {
   // Separate auto-play toggles for lesson and review items.
   const [autoplayLesson, setAutoplayLesson] = useStoredFlag(AUTOPLAY_LESSON_KEY)
   const [autoplayReview, setAutoplayReview] = useStoredFlag(AUTOPLAY_REVIEW_KEY)
+  const [markCorrect, setMarkCorrect] = useStoredFlag(MARK_CORRECT_KEY)
 
   // Follow the OS colour-scheme so the 'system' theme tracks changes.
   useEffect(() => {
@@ -139,6 +141,7 @@ export default function App() {
             mode={sessionMode}
             autoplayLesson={autoplayLesson}
             autoplayReview={autoplayReview}
+            markCorrect={markCorrect}
             onDone={backToDashboard}
           />
         )}
@@ -146,6 +149,7 @@ export default function App() {
           <Practice
             dataset={currentDataset ?? ''}
             autoplay={autoplayReview}
+            markCorrect={markCorrect}
             onStop={backToDashboard}
           />
         )}
@@ -162,9 +166,11 @@ export default function App() {
         theme={theme}
         autoplayLesson={autoplayLesson}
         autoplayReview={autoplayReview}
+        markCorrect={markCorrect}
         onSelectTheme={selectTheme}
         onSetAutoplayLesson={setAutoplayLesson}
         onSetAutoplayReview={setAutoplayReview}
+        onSetMarkCorrect={setMarkCorrect}
         onClose={() => setSettingsOpen(false)}
       />
     </div>

@@ -9,6 +9,7 @@ interface SessionProps {
   dataset: string
   autoplayLesson: boolean
   autoplayReview: boolean
+  markCorrect: boolean
   onDone: () => void
 }
 
@@ -76,6 +77,7 @@ export default function Session({
   dataset,
   autoplayLesson,
   autoplayReview,
+  markCorrect,
   onDone,
 }: SessionProps) {
   const [queue, setQueue] = useState<ReviewCardType[]>([])
@@ -240,6 +242,7 @@ export default function Session({
           key={current.id + ':' + current.question_type}
           item={current}
           autoplay={autoplayReview}
+          markCorrect={markCorrect}
           onAnswered={handleAnswered}
           onNext={next}
         />

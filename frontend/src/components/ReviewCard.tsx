@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { Check } from 'lucide-react'
 import { reviewAnswer } from '../api'
 import { playItemAudio, useAutoplay } from '../audio'
 import { SHORTCUTS, isShortcut } from '../shortcuts'
@@ -14,23 +15,32 @@ interface Result {
   correct: boolean
   expected: string
   item: Card
+  revealed?: boolean
 }
 
 interface ReviewCardProps {
   item: ReviewCardType
   autoplay: boolean
+  markCorrect: boolean
   onAnswered: (correct: boolean) => void
   onNext: () => void
 }
 
 /**
- * Show a single review card: grade the typed answer, report its correctness,
- * then continue. Supports meaning, reading, and self-grade prompts.
+ * Show a single review card: grade the typed answer, let the user override a
+ * close miss, then report the final result and continue.
  */
-export default function ReviewCard({ item, autoplay, onAnswered, onNext }: ReviewCardProps) {
+export default function ReviewCard({
+  item,
+  autoplay,
+  markCorrect,
+  onAnswered,
+  onNext,
+}: ReviewCardProps) {
   const [phase, setPhase] = useState<'input' | 'result'>('input')
   const [result, setResult] = useState<Result | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const committedRef = useRef(false)
   const isMeaning = item.question_type === 'meaning'
   const isSelfGrade = item.question_type === 'self-grade'
   const label = isMeaning ? 'Vocabulary Meaning' : isSelfGrade ? 'Vocabulary' : 'Vocabulary Reading'
@@ -57,19 +67,15 @@ export default function ReviewCard({ item, autoplay, onAnswered, onNext }: Revie
         expected: response.expected || expected(item),
         item: response.item,
       })
-      setPhase('result')
-      onAnswered(response.correct)
     } catch (_) {
       setResult({ correct: false, expected: expected(item), item })
-      setPhase('result')
-      onAnswered(false)
     }
+    setPhase('result')
   }
 
   const skip = () => {
-    setResult({ correct: false, expected: expected(item), item })
+    setResult({ correct: false, expected: expected(item), item, revealed: true })
     setPhase('result')
-    onAnswered(false)
   }
 
   const gradeSelf = async (recalled: boolean) => {
@@ -80,12 +86,28 @@ export default function ReviewCard({ item, autoplay, onAnswered, onNext }: Revie
         expected: response.expected || expected(item),
         item: response.item,
       })
-      onAnswered(response.correct)
     } catch (_) {
       setResult({ correct: recalled, expected: '', item })
-      onAnswered(recalled)
     }
     setPhase('result')
+  }
+
+  // Report the final result to the parent exactly once, then advance.
+  const commit = () => {
+    if (committedRef.current || !result) {
+      return
+    }
+    committedRef.current = true
+    onAnswered(result.correct)
+  }
+
+  const advance = () => {
+    commit()
+    onNext()
+  }
+
+  const markAsCorrect = () => {
+    setResult(previous => (previous ? { ...previous, correct: true } : previous))
   }
 
   const onKey = (event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -93,7 +115,7 @@ export default function ReviewCard({ item, autoplay, onAnswered, onNext }: Revie
       submit(event.currentTarget.value)
     }
     if (phase === 'result' && isShortcut(event, SHORTCUTS.next)) {
-      onNext()
+      advance()
     }
   }
 
@@ -104,11 +126,11 @@ export default function ReviewCard({ item, autoplay, onAnswered, onNext }: Revie
         return
       }
       event.preventDefault()
-      onNext()
+      advance()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [phase, onNext])
+  }, [phase, advance])
 
   // Self-grade cards are graded by keyboard: "missed it" or "got it".
   useEffect(() => {
@@ -158,6 +180,13 @@ export default function ReviewCard({ item, autoplay, onAnswered, onNext }: Revie
 
   const correct = result ? result.correct : false
   const cardClass = phase === 'result' ? (correct ? 'result-correct' : 'result-incorrect') : ''
+  const showMarkCorrect =
+    markCorrect &&
+    !isSelfGrade &&
+    phase === 'result' &&
+    !!result &&
+    !result.correct &&
+    !result.revealed
 
   return (
     <div className={`card ${cardClass} type-${typeClass}`}>
@@ -216,11 +245,15 @@ export default function ReviewCard({ item, autoplay, onAnswered, onNext }: Revie
               Skip
             </button>
           )
+        ) : showMarkCorrect ? (
+          <button className="mark-correct-btn" onClick={markAsCorrect}>
+            <Check size={16} /> Mark Correct
+          </button>
         ) : (
           <ShortcutHints />
         )}
         {phase === 'result' && (
-          <button className="next-btn" onClick={onNext}>
+          <button className="next-btn" onClick={advance}>
             Continue
           </button>
         )}
