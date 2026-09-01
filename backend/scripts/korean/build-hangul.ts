@@ -3,19 +3,20 @@ import path from 'node:path'
 import type { DatasetConfig, DatasetItem } from '@shared/types'
 
 /*
- * Build the complete hangul dataset (data/hangul.json) and download its audio.
+ * Build the complete hangul dataset (data/korean/hangul.json) and download its audio.
  *
  * The character data (characters, readings, level) and the audio source URLs are
  * all defined inline below, so the script is self-contained and works offline:
- * hangul.json is always written, and any audio that can't be fetched is simply
+ * korean/hangul.json is always written, and any audio that can't be fetched is simply
  * skipped with a warning.
  */
 
-const DATA_DIR = path.join(import.meta.dirname, '..', 'data')
+const DATA_DIR = path.join(import.meta.dirname, '..', '..', 'data')
 const DATASET_ID = 'hangul'
-const OUT = path.join(DATA_DIR, `${DATASET_ID}.json`)
+const OUT = path.join(DATA_DIR, 'korean', `${DATASET_ID}.json`)
 const AUDIO_DIR = path.join(DATA_DIR, 'static', 'audio', 'korean', DATASET_ID)
 const DATASETS_JSON = path.join(DATA_DIR, 'datasets.json')
+const AUDIO_URL_PATH = '/static/audio/korean'
 
 const S3 = 'https://90daykoreanaudiobytes.s3-us-west-1.amazonaws.com/'
 
@@ -23,7 +24,7 @@ const S3 = 'https://90daykoreanaudiobytes.s3-us-west-1.amazonaws.com/'
 const HANGUL_DATASET: DatasetConfig = {
   id: DATASET_ID,
   name: 'Hangul Alphabet',
-  file: `${DATASET_ID}.json`,
+  file: `korean/${DATASET_ID}.json`,
   mode: 'practice',
   type: 'character',
   badge: 'Practice',
@@ -86,7 +87,7 @@ function buildCards(): DatasetItem[] {
     characters,
     readings,
     level,
-    audio: `/static/audio/korean/${DATASET_ID}/${filenameFor(characters)}`,
+    audio: `${AUDIO_URL_PATH}/${DATASET_ID}/${filenameFor(characters)}`,
   }))
 }
 
@@ -150,7 +151,7 @@ function upsertDataset(entry: DatasetConfig): void {
 
 /** Write the dataset, register it, then fetch the audio for each character. */
 async function main(): Promise<void> {
-  fs.mkdirSync(DATA_DIR, { recursive: true })
+  fs.mkdirSync(path.dirname(OUT), { recursive: true })
   const cards = buildCards()
   fs.writeFileSync(OUT, JSON.stringify(cards, null, 2) + '\n')
   console.log(`Wrote ${cards.length} characters to ${OUT}`)

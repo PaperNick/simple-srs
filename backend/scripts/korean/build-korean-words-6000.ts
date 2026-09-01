@@ -3,8 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 import AdmZip from 'adm-zip'
 import Database from 'better-sqlite3'
-import * as dbc from '../src/db'
-import { splitMeanings } from '../src/meanings'
+import * as dbc from '../../src/db'
+import { splitMeanings } from '../../src/meanings'
 import type { DatasetConfig, DatasetItem } from '@shared/types'
 
 interface TopikEntry {
@@ -17,18 +17,19 @@ interface TopikEntry {
  * Build a Korean words dataset by merging the TOPIK 6000 CSV (meaning +
  * readings) with audio from an Anki deck file. Words present in the deck get
  * their audio mapped from it; CSV-only words are kept with audio = null. The
- * result is written to korean-words-6000.json + audio + DB vocabulary.
+ * result is written to korean/korean-words-6000.json + audio + DB vocabulary.
  *
  * Deck: https://ankiweb.net/shared/info/408875623  (provides No | Word | Audio)
  * CSV:  TOPIK 6000 frequency list (word -> romanized + English + level)
  */
 
-const ROOT = path.join(import.meta.dirname, '..', '..')
+const ROOT = path.join(import.meta.dirname, '..', '..', '..')
 const DATA_DIR = path.join(ROOT, 'backend', 'data')
 const DATASET_ID = 'korean-words-6000'
-const WORDS_JSON = path.join(DATA_DIR, `${DATASET_ID}.json`)
+const WORDS_JSON = path.join(DATA_DIR, 'korean', `${DATASET_ID}.json`)
 const AUDIO_DIR = path.join(DATA_DIR, 'static', 'audio', 'korean', DATASET_ID)
 const DATASETS_JSON = path.join(DATA_DIR, 'datasets.json')
+const AUDIO_URL_PATH = '/static/audio/korean'
 
 // TOPIK 6000 frequency list CSV (word -> romanization + English + level),
 // used to enrich the deck's words with meaning and readings.
@@ -40,7 +41,7 @@ const TOPIK_CSV = path.join(DATA_DIR, 'topik-6000.csv')
 const WORDS_DATASET: DatasetConfig = {
   id: DATASET_ID,
   name: 'Korean Words',
-  file: `${DATASET_ID}.json`,
+  file: `korean/${DATASET_ID}.json`,
   mode: 'srs',
   type: 'vocabulary',
   badge: 'SRS',
@@ -148,7 +149,7 @@ function resolveDeckPath(): string {
   console.error(
     'Download the deck from https://ankiweb.net/shared/info/408875623 and pass its path as an argument, e.g.'
   )
-  console.error('  npx tsx scripts/build-korean-words-6000.ts path/to/deck.apkg')
+  console.error('  npx tsx scripts/korean/build-korean-words-6000.ts path/to/deck.apkg')
   process.exit(1)
 }
 
@@ -234,7 +235,7 @@ async function buildFromDeck(apkgPath: string): Promise<void> {
         fs.writeFileSync(path.join(AUDIO_DIR, audioFile), entry.getData())
         audioWritten++
       }
-      audio = `/static/audio/korean/${DATASET_ID}/${audioFile}`
+      audio = `${AUDIO_URL_PATH}/${DATASET_ID}/${audioFile}`
       withAudio++
     }
 
@@ -265,7 +266,7 @@ async function buildFromDeck(apkgPath: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  fs.mkdirSync(DATA_DIR, { recursive: true })
+  fs.mkdirSync(path.dirname(WORDS_JSON), { recursive: true })
   await buildFromDeck(resolveDeckPath())
 }
 

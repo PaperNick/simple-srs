@@ -42,7 +42,7 @@ npm run preview   # optional: preview the production build locally on :4173
 ## Modes
 
 - **Practice** - endless, shuffled grinding of a dataset's items (e.g. the 40 Hangul jamo). No SRS; answer by typing the romanization. Runs until you press **Stop**. Shows a running tally (answered / correct / wrong / streak).
-- **Lesson / Review (Words SRS)** - teaches new words, then reviews them on a stage-based spaced-repetition schedule. Words must be added first (see `backend/data/korean-words-6000.json` or `POST /api/vocab`).
+- **Lesson / Review (Words SRS)** - teaches new words, then reviews them on a stage-based spaced-repetition schedule. Words must be added first (check the backend scripts that build datasets).
 
 Cards with no `readings` and no `meanings` are **self-graded**: instead of an input field, the card shows **Missed it** / **Got it** buttons so you decide whether you recalled it.
 

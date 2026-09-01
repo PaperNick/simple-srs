@@ -58,7 +58,7 @@ It carries the metadata the frontend renders, so the client never hardcodes anyt
   {
     "id": "hangul",
     "name": "Hangul Alphabet",
-    "file": "hangul.json",
+    "file": "korean/hangul.json",
     "mode": "practice",
     "type": "character",
     "badge": "Practice",
@@ -67,7 +67,7 @@ It carries the metadata the frontend renders, so the client never hardcodes anyt
   {
     "id": "korean-words-6000",
     "name": "Korean Words",
-    "file": "korean-words-6000.json",
+    "file": "korean/korean-words-6000.json",
     "mode": "srs",
     "type": "vocabulary",
     "badge": "SRS",
@@ -121,24 +121,26 @@ Words progress through stages - `Apprentice I..IV - Guru I/II - Master - Enlight
 
 A correct answer advances one stage and schedules the next review; a wrong answer drops the word back to `Apprentice I`. Practice items are excluded from SRS stages.
 
-## Building the Hangul dataset
+## Korean datasets
 
-The Hangul alphabet dataset (`data/hangul.json`) is fully self-contained: the characters, readings, levels, and audio source URLs are defined inline in `scripts/build-hangul.ts`.
+### Hangul alphabet
+
+The Hangul alphabet dataset (`data/korean/hangul.json`) is fully self-contained: the characters, readings, levels, and audio source URLs are defined inline in `scripts/korean/build-hangul.ts`.
 
 ```bash
 # With the backend stopped
-npx tsx scripts/build-hangul.ts
+npx tsx scripts/korean/build-hangul.ts
 ```
 
-It writes `data/hangul.json`, registers the `hangul` dataset in `data/datasets.json`, and downloads each character's audio into `data/static/audio/korean/hangul/`. Audio that can't be fetched is skipped with a warning - the dataset is still written and usable.
+It writes `data/korean/hangul.json`, registers the `hangul` dataset in `data/datasets.json`, and downloads each character's audio into `data/static/audio/korean/hangul/`. Audio that can't be fetched is skipped with a warning - the dataset is still written and usable.
 
-## Building the Korean words dataset
+### Korean words (TOPIK 6000)
 
 The Korean words dataset is built from an Anki deck file (for audio). Download the **Korean 1000 most common words (audio)** deck from https://ankiweb.net/shared/info/408875623, then run `build-korean-words-6000.ts` with its path:
 
 ```bash
 # With the backend stopped
-npx tsx scripts/build-korean-words-6000.ts path/to/deck.apkg
+npx tsx scripts/korean/build-korean-words-6000.ts path/to/deck.apkg
 ```
 
 The script downloads (and caches) the TOPIK 6000 CSV, reads the Anki notes (word + `[sound:...mp3]`), enriches each word with meanings + romanization from the CSV by matching the word (`audio = null` for words not in the deck), extracts the audio into `data/static/audio/korean/korean-words-6000/`, and **replaces** the vocabulary in the database (clearing prior word SRS progress).
