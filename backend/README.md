@@ -149,6 +149,19 @@ Each raw sense string is split into discrete `meanings[]` entries at build time 
 
 The audio path is stored in each item's `audio` column and returned by the API, so word cards can play it.
 
+## Japanese datasets
+
+### Hiragana & Katakana
+
+`scripts/japanese/build-kana.ts` builds both syllabaries from the shared kana -> romaji map in `src/syllabaries/japanese/kana.json` and downloads their audio:
+
+```bash
+# With the backend stopped
+npx tsx scripts/japanese/build-kana.ts
+```
+
+It writes `data/japanese/hiragana.json` and `data/japanese/katakana.json`, registers both decks, and downloads the shared audio into `data/static/audio/japanese/kana/`.
+
 ## Testing
 
 Tests live in [`tests/`](tests) and use Node's built-in test runner (run through `tsx`).
