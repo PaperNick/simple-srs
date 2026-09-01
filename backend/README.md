@@ -162,6 +162,25 @@ npx tsx scripts/japanese/build-kana.ts
 
 It writes `data/japanese/hiragana.json` and `data/japanese/katakana.json`, registers both decks, and downloads the shared audio into `data/static/audio/japanese/kana/`.
 
+### WaniKani
+
+Two scripts talk to the [WaniKani API v2](https://docs.api.wanikani.com/), which needs a personal access token `WANIKANI_API_KEY` (provide as env var or first CLI argument).
+
+`scripts/japanese/build-wanikani.ts` downloads every subject and builds three decks - radicals, kanji, and vocabulary. Only the vocabulary set has pronunciation audio.
+
+```bash
+# With the backend stopped
+WANIKANI_API_KEY=... npx tsx scripts/japanese/build-wanikani.ts
+```
+
+`scripts/japanese/sync-wanikani.ts` pulls your current SRS assignments and writes each card's stage and next-review time into the DB:
+
+```bash
+WANIKANI_API_KEY=... npx tsx scripts/japanese/sync-wanikani.ts
+```
+
+Run the build first so the cards exist, then sync to restore your WaniKani progress.
+
 ## Testing
 
 Tests live in [`tests/`](tests) and use Node's built-in test runner (run through `tsx`).
