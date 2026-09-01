@@ -461,35 +461,13 @@ test('word review: auto-plays word audio only when prompted for Reading, not Mea
   // because the 10-word seed only supports two full lessons in this serial suite).
   await expect(page.getByRole('button', { name: /Start Review/ })).toBeEnabled()
 
-  // Only some words carry audio. Pin the question types so the queue
-  // deterministically contains a Reading card AND a Meaning card that both have
-  // audio (otherwise we can't reliably observe autoplay vs no autoplay).
+  // Every due word becomes a Reading step AND a Meaning step. Fetch the due items
+  // so we can look up the correct answer for whatever card we are shown.
   const { due } = await getJson<{
     due: Array<{ characters: string; meanings: string[]; readings: string[]; audio: string | null }>
   }>(page, '/api/review/start?dataset=words')
   expect(due.length).toBeGreaterThan(0)
-  expect(due.filter(d => d.audio).length).toBeGreaterThanOrEqual(2)
-
-  let pinnedReading = false
-  let pinnedMeaning = false
-  const pinned = due.map(d => {
-    if (d.audio && !pinnedReading) {
-      pinnedReading = true
-      return { ...d, question_type: 'reading' }
-    }
-    if (d.audio && !pinnedMeaning) {
-      pinnedMeaning = true
-      return { ...d, question_type: 'meaning' }
-    }
-    return { ...d, question_type: d.readings.length > 0 ? 'reading' : 'meaning' }
-  })
-  await page.route(/\/api\/review\/start/, route =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ due: pinned }),
-    })
-  )
+  expect(due.filter(d => d.audio).length).toBeGreaterThanOrEqual(1)
 
   await page.getByRole('button', { name: /Start Review/ }).click()
 
@@ -498,14 +476,17 @@ test('word review: auto-plays word audio only when prompted for Reading, not Mea
 
   // Walk the (client-shuffled) queue: a Meaning prompt must NOT autoplay, a
   // Reading one must. Only cards that actually have audio can prove either.
+  // Each due word becomes two cards (Reading + Meaning), so there are at most
+  // `due.length * 2` cards to walk.
+  const totalCards = due.length * 2
   let sawReadingAutoplay = false
   let sawMeaningQuiet = false
-  for (let index = 0; index < pinned.length; index++) {
+  for (let index = 0; index < totalCards; index++) {
     const subtitle = (await page.locator('.subtitle-bar').textContent())!
     const displayedChar = (await page.locator('.banner-char').textContent())!.trim()
-    const item = pinned.find(d => d.characters === displayedChar)
+    const item = due.find(d => d.characters === displayedChar)
     if (!item) {
-      throw new Error(`Could not find a pinned review card for "${displayedChar}"`)
+      throw new Error(`Could not find a review card for "${displayedChar}"`)
     }
 
     const isReading = /Reading/.test(subtitle)
@@ -599,4 +580,56 @@ test('word review: grading by meaning/reading, Enter to continue', async ({ page
   // Stop back to dashboard
   await page.getByRole('button', { name: 'Back to Dashboard' }).click()
   await expect(page.locator('.brand')).toHaveText('Simple.SRS')
+})
+
+test('word review: advances stage only when reading and meaning are both correct', async ({
+  page,
+}) => {
+  await page.goto('/')
+
+  await expect(page.getByRole('button', { name: /Start Review/ })).toBeEnabled()
+
+  const stageCount = async (stage: number): Promise<number> => {
+    const { datasets } = await getJson<{
+      datasets: Array<{ id: string; stages: Array<{ stage: number; count: number }> }>
+    }>(page, '/api/stats')
+    return datasets.find(d => d.id === 'words')!.stages.find(s => s.stage === stage)!.count
+  }
+  const stage1Before = await stageCount(1)
+
+  // Pin the review to a single due item so the stage change is deterministic.
+  const { due } = await getJson<{
+    due: Array<{ id: number; characters: string; readings: string[]; meanings: string[] }>
+  }>(page, '/api/review/start?dataset=words')
+  const target = due[0]
+  expect(target).toBeTruthy()
+
+  await page.route(/\/api\/review\/start/, route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ due: [target] }),
+    })
+  )
+
+  await page.getByRole('button', { name: /Start Review/ }).click()
+
+  // The queue is this one item's reading + meaning cards (shuffled). Answer both.
+  const answered = new Set<string>()
+  for (let index = 0; index < 2; index++) {
+    const subtitle = (await page.locator('.subtitle-bar').textContent())!
+    const isReading = /Reading/.test(subtitle)
+    const answer = isReading ? target.readings[0] : target.meanings[0]
+    await page.locator('.answer-input').fill(answer)
+    await page.getByRole('button', { name: 'Enter' }).click()
+    await expect(page.locator('.result-bar')).toHaveClass(/green/)
+    answered.add(isReading ? 'reading' : 'meaning')
+    await page.locator('.banner').click()
+    await page.keyboard.press('Enter')
+  }
+  expect(answered.has('reading')).toBe(true)
+  expect(answered.has('meaning')).toBe(true)
+
+  // The session finishes automatically; wait for the stage-1 count to bump.
+  await expect.poll(() => stageCount(1), { timeout: 5_000 }).toBe(stage1Before + 1)
 })

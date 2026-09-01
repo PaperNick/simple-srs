@@ -13,7 +13,7 @@ import type {
   PracticeAnswerResponse,
   QuestionType,
   ReviewAnswerResponse,
-  ReviewCard,
+  ReviewScheduleResponse,
   ReviewStartResponse,
   VocabAddResponse,
 } from '@shared/types'
@@ -37,6 +37,10 @@ interface ReviewAnswerBody {
   question_type?: string
   input?: string
   recalled?: boolean
+}
+
+interface ReviewScheduleBody {
+  correct?: boolean
 }
 
 interface VocabAddBody {
@@ -147,28 +151,14 @@ app.post('/api/lesson/complete', (req, res) => {
   res.json(body)
 })
 
-/**
- * Choose which question to ask for a review card. A card with no readings and no
- * meanings is a self-grade card (the user decides whether they recalled it).
- */
-function pickQuestionType(card: Card): QuestionType {
-  const hasReading = card.readings.length > 0
-  const hasMeaning = card.meanings.length > 0
-  if (hasReading && hasMeaning) {
-    return Math.random() < 0.5 ? 'reading' : 'meaning'
-  }
-  if (hasReading) {
-    return 'reading'
-  }
-  if (hasMeaning) {
-    return 'meaning'
-  }
-  return 'self-grade'
-}
-
 /** Validate a client-supplied question type, returning null when invalid. */
 function parseQuestionType(value: unknown): QuestionType | null {
   return QUESTION_TYPES.includes(value as QuestionType) ? (value as QuestionType) : null
+}
+
+/** Human-readable name for a stage number. */
+function stageName(stage: number): string {
+  return stage === dbc.BURNED_STAGE ? 'Burned' : dbc.STAGES[stage].name
 }
 
 app.get('/api/review/start', (req, res) => {
@@ -177,17 +167,14 @@ app.get('/api/review/start', (req, res) => {
   if (!dataset) {
     return
   }
-  const items = dbc.dueItems(db, limit, dataset)
-  // Ask reading OR meaning for each item (prompt -> recall either), unless the
-  // card has nothing to type, in which case it's a self-grade card.
-  const due: ReviewCard[] = items.map(item => {
-    const card = toCard(item)
-    return { ...card, question_type: pickQuestionType(card) }
-  })
+  // Return the due items as cards. The client turns each card into its
+  // reading/meaning steps and decides when the item has fully passed.
+  const due: Card[] = dbc.dueItems(db, limit, dataset).map(toCard)
   const body: ReviewStartResponse = { due }
   res.json(body)
 })
 
+/** Grade a single review answer for feedback. */
 app.post('/api/review/answer', (req, res) => {
   const item = findItemOr404(req, res)
   if (!item) {
@@ -200,19 +187,43 @@ app.post('/api/review/answer', (req, res) => {
   }
   // A self-grade card is graded by the client's accept/reject decision.
   const result: GradeResult = gradeCard(item, body.input ?? '', question_type, body.recalled)
-  const schedule = dbc.scheduleAfterAnswer(db, item, result.correct)
   dbc.recordReview(
     db,
     item.id,
     question_type,
     String(body.input || ''),
     result.correct,
-    schedule.stage
+    item.srs_stage
   )
 
   const response: ReviewAnswerResponse = {
     correct: result.correct,
     expected: result.expectedDisplay,
+    item: {
+      ...toCard(item),
+      srs_stage: item.srs_stage,
+      stage_name: stageName(item.srs_stage),
+      burned: item.srs_stage === dbc.BURNED_STAGE,
+    },
+  }
+  res.json(response)
+})
+
+/**
+ * Apply the SRS schedule for an item once its review is decided: advance a stage
+ * when every required question type was answered correctly, otherwise reset.
+ */
+app.post('/api/review/schedule', (req, res) => {
+  const item = findItemOr404(req, res)
+  if (!item) {
+    return
+  }
+  const { correct } = (req.body as ReviewScheduleBody) || {}
+  if (typeof correct !== 'boolean') {
+    return res.status(400).json({ error: 'correct is required' })
+  }
+  const schedule = dbc.scheduleAfterAnswer(db, item, correct)
+  const response: ReviewScheduleResponse = {
     item: {
       ...toCard(item),
       srs_stage: schedule.stage,

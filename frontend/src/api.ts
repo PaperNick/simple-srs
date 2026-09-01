@@ -5,6 +5,7 @@ import type {
   PracticeAnswerResponse,
   QuestionType,
   ReviewAnswerResponse,
+  ReviewScheduleResponse,
   ReviewStartResponse,
 } from '@shared/types'
 
@@ -42,6 +43,9 @@ export const reviewAnswer = (
     '/api/review/answer',
     json('POST', { item_id, input, question_type, recalled })
   )
+
+export const reviewSchedule = (item_id: number, correct: boolean) =>
+  API<ReviewScheduleResponse>('/api/review/schedule', json('POST', { item_id, correct }))
 
 export const getPracticeItems = (dataset: string) =>
   API<ItemsResponse>(`/api/practice/items?dataset=${dataset}`)

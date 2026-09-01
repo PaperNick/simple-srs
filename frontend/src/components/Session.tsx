@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import LessonCard from './LessonCard'
 import ReviewCard from './ReviewCard'
-import { startLesson, startReview, completeLesson } from '../api'
-import type { Card, ReviewCard as ReviewCardType, SessionMode } from '@shared/types'
+import { startLesson, startReview, completeLesson, reviewSchedule } from '../api'
+import type { Card, QuestionType, ReviewCard as ReviewCardType, SessionMode } from '@shared/types'
 
 interface SessionProps {
   mode: SessionMode
@@ -10,6 +10,13 @@ interface SessionProps {
   autoplayLesson: boolean
   autoplayReview: boolean
   onDone: () => void
+}
+
+/** Per-item progress for the current review: required types, those answered correctly, and whether it failed. */
+interface ItemProgress {
+  required: Set<QuestionType>
+  correct: Set<QuestionType>
+  failed: boolean
 }
 
 /** Return a new array with the items randomly shuffled. */
@@ -25,11 +32,11 @@ function shuffle<T>(array: T[]): T[] {
 }
 
 /**
- * Expand a lesson's items into review steps: a meaning step (if the item has a
- * meaning) and a reading step (if it has a reading). Items with neither are a
- * single self-grade step - they just need to be seen.
+ * Expand an item into review steps: a meaning step (if the item has a meaning)
+ * and a reading step (if it has a reading). Items with neither are a single
+ * self-grade step - they just need to be seen.
  */
-function lessonSteps(items: Card[]): ReviewCardType[] {
+function expandSteps(items: Card[]): ReviewCardType[] {
   return items.flatMap(item => {
     const steps: ReviewCardType[] = []
     if (item.meanings.length) {
@@ -43,6 +50,21 @@ function lessonSteps(items: Card[]): ReviewCardType[] {
     }
     return steps
   })
+}
+
+/** The question types an item must answer correctly before it can advance. */
+function requiredTypes(item: Card): QuestionType[] {
+  const types: QuestionType[] = []
+  if (item.readings.length) {
+    types.push('reading')
+  }
+  if (item.meanings.length) {
+    types.push('meaning')
+  }
+  if (types.length === 0) {
+    types.push('self-grade')
+  }
+  return types
 }
 
 /**
@@ -60,6 +82,7 @@ export default function Session({
   const [index, setIndex] = useState(0)
   const [loading, setLoading] = useState(true)
   const doneRef = useRef(false)
+  const progressRef = useRef<Map<number, ItemProgress>>(new Map())
 
   const finish = useCallback(
     async (lessonIds?: number[] | null) => {
@@ -97,7 +120,7 @@ export default function Session({
             return
           }
           // A lesson teaches a word in two steps: meaning, then reading.
-          steps = lessonSteps(items)
+          steps = expandSteps(items)
         } else {
           const { due } = await startReview(dataset)
           if (cancelled) {
@@ -107,7 +130,20 @@ export default function Session({
             finish()
             return
           }
-          steps = shuffle(due)
+          // Each due item becomes a reading and/or meaning step, shuffled so the
+          // ordering isn't predictable. Track which types each item still needs.
+          steps = shuffle(expandSteps(due))
+          const progress = new Map<number, ItemProgress>()
+          for (const step of steps) {
+            if (!progress.has(step.id)) {
+              progress.set(step.id, {
+                required: new Set(requiredTypes(step)),
+                correct: new Set(),
+                failed: false,
+              })
+            }
+          }
+          progressRef.current = progress
         }
         setQueue(steps)
         setIndex(0)
@@ -130,12 +166,39 @@ export default function Session({
 
   const next = useCallback(() => setIndex(current => current + 1), [])
 
-  const reQueue = useCallback(() => {
-    if (!current) {
-      return
-    }
-    setQueue(q => [...q, current])
-  }, [current])
+  // Apply the SRS schedule for an item once its review is decided.
+  const schedule = useCallback((itemId: number, correct: boolean) => {
+    reviewSchedule(itemId, correct).catch(() => {
+      /* ignore scheduling errors */
+    })
+  }, [])
+
+  // Called after each review answer. A correct answer is recorded; once every
+  // required question type is correct (with no prior miss) the item advances.
+  // Any miss drops it to the first stage immediately and re-queues the card,
+  // and the item stays at the first stage for the rest of the session.
+  const handleAnswered = useCallback(
+    (correct: boolean) => {
+      if (!current) {
+        return
+      }
+      const progress = progressRef.current.get(current.id)
+      if (!progress) {
+        return
+      }
+      if (!correct) {
+        progress.failed = true
+        schedule(current.id, false)
+        setQueue(q => [...q, current])
+        return
+      }
+      progress.correct.add(current.question_type)
+      if (!progress.failed && progress.correct.size === progress.required.size) {
+        schedule(current.id, true)
+      }
+    },
+    [current, schedule]
+  )
 
   useEffect(() => {
     if (loading) {
@@ -177,7 +240,7 @@ export default function Session({
           key={current.id + ':' + current.question_type}
           item={current}
           autoplay={autoplayReview}
-          onMissed={reQueue}
+          onAnswered={handleAnswered}
           onNext={next}
         />
       )}

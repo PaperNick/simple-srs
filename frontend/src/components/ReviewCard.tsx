@@ -19,15 +19,15 @@ interface Result {
 interface ReviewCardProps {
   item: ReviewCardType
   autoplay: boolean
-  onMissed: () => void
+  onAnswered: (correct: boolean) => void
   onNext: () => void
 }
 
 /**
- * Show a single review card: grade the typed answer, then continue or re-queue
- * the item. Supports meaning and reading prompts.
+ * Show a single review card: grade the typed answer, report its correctness,
+ * then continue. Supports meaning, reading, and self-grade prompts.
  */
-export default function ReviewCard({ item, autoplay, onMissed, onNext }: ReviewCardProps) {
+export default function ReviewCard({ item, autoplay, onAnswered, onNext }: ReviewCardProps) {
   const [phase, setPhase] = useState<'input' | 'result'>('input')
   const [result, setResult] = useState<Result | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -58,20 +58,18 @@ export default function ReviewCard({ item, autoplay, onMissed, onNext }: ReviewC
         item: response.item,
       })
       setPhase('result')
-      if (!response.correct) {
-        onMissed()
-      }
+      onAnswered(response.correct)
     } catch (_) {
       setResult({ correct: false, expected: expected(item), item })
       setPhase('result')
-      onMissed()
+      onAnswered(false)
     }
   }
 
   const skip = () => {
     setResult({ correct: false, expected: expected(item), item })
     setPhase('result')
-    onMissed()
+    onAnswered(false)
   }
 
   const gradeSelf = async (recalled: boolean) => {
@@ -82,14 +80,10 @@ export default function ReviewCard({ item, autoplay, onMissed, onNext }: ReviewC
         expected: response.expected || expected(item),
         item: response.item,
       })
-      if (!response.correct) {
-        onMissed()
-      }
+      onAnswered(response.correct)
     } catch (_) {
       setResult({ correct: recalled, expected: '', item })
-      if (!recalled) {
-        onMissed()
-      }
+      onAnswered(recalled)
     }
     setPhase('result')
   }

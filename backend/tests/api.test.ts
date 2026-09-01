@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import type { ChildProcess } from 'node:child_process'
-import type { DatasetConfig, DatasetSummary, ReviewCard } from '@shared/types'
+import type { Card, DatasetConfig, DatasetSummary } from '@shared/types'
 
 /**
  * HTTP-level tests for src/server.ts against a throwaway DB. We spawn the real
@@ -262,11 +262,10 @@ describe('API - vocab, lesson, review flow', () => {
     const review = await get(`/api/review/start?dataset=${srsDataset.id}&limit=20`)
     assert.equal(review.status, 200)
     assert.ok(review.body.due.length >= 5)
-    const first: ReviewCard = review.body.due.find((d: ReviewCard) => ids.includes(d.id))
+    const first: Card = review.body.due.find((d: Card) => ids.includes(d.id))
     assert.ok(first)
-    assert.notEqual(first.question_type, undefined)
 
-    // Answer with the correct reading.
+    // Answer with the correct reading (grade only - does not schedule yet).
     const guess = first.readings[0]
     const ans = await post('/api/review/answer', {
       item_id: first.id,
@@ -276,7 +275,13 @@ describe('API - vocab, lesson, review flow', () => {
     assert.equal(ans.status, 200)
     assert.equal(ans.body.correct, true)
     assert.equal(ans.body.expected, first.readings.join(', '))
-    assert.ok(ans.body.item.srs_stage >= 0)
+    assert.equal(ans.body.item.srs_stage, 0)
+
+    // Scheduling is a separate step: a correct review advances the stage.
+    const scheduled = await post('/api/review/schedule', { item_id: first.id, correct: true })
+    assert.equal(scheduled.status, 200)
+    assert.equal(scheduled.body.item.srs_stage, 1)
+    assert.equal(scheduled.body.item.stage_name, 'Apprentice II')
   })
 })
 
@@ -296,12 +301,11 @@ describe('API - self-grade cards (nothing to type)', () => {
     const review = await get(`/api/review/start?dataset=seen&limit=20`)
     assert.equal(review.status, 200)
     assert.equal(review.body.due.length, 2)
-    const due: ReviewCard = review.body.due[0]
-    assert.equal(due.question_type, 'self-grade')
+    const due: Card = review.body.due[0]
     assert.deepEqual(due.readings, [])
     assert.deepEqual(due.meanings, [])
 
-    // Accept ("got it") -> graded correct and advanced.
+    // Accept ("got it") -> graded correct, then scheduled to advance.
     const accept = await post('/api/review/answer', {
       item_id: due.id,
       input: '',
@@ -310,10 +314,14 @@ describe('API - self-grade cards (nothing to type)', () => {
     })
     assert.equal(accept.status, 200)
     assert.equal(accept.body.correct, true)
-    assert.ok(accept.body.item.srs_stage >= 1)
+    assert.equal(accept.body.item.srs_stage, 0)
 
-    // Reject ("missed it") -> graded incorrect and reset.
-    const other: ReviewCard = review.body.due.find((d: ReviewCard) => d.id !== due.id)
+    const acceptScheduled = await post('/api/review/schedule', { item_id: due.id, correct: true })
+    assert.equal(acceptScheduled.status, 200)
+    assert.ok(acceptScheduled.body.item.srs_stage >= 1)
+
+    // Reject ("missed it") -> graded incorrect, then scheduled to reset.
+    const other: Card = review.body.due.find((d: Card) => d.id !== due.id)
     const reject = await post('/api/review/answer', {
       item_id: other.id,
       input: '',
@@ -323,5 +331,73 @@ describe('API - self-grade cards (nothing to type)', () => {
     assert.equal(reject.status, 200)
     assert.equal(reject.body.correct, false)
     assert.equal(reject.body.item.srs_stage, 0)
+
+    const rejectScheduled = await post('/api/review/schedule', {
+      item_id: other.id,
+      correct: false,
+    })
+    assert.equal(rejectScheduled.status, 200)
+    assert.equal(rejectScheduled.body.item.srs_stage, 0)
+  })
+})
+
+describe('API - two-part review staging', () => {
+  it('grades reading + meaning without scheduling, then advances once both are correct', async () => {
+    const review = await get(`/api/review/start?dataset=${srsDataset.id}&limit=20`)
+    assert.equal(review.status, 200)
+    const due: Card = review.body.due.find(
+      (d: Card) => d.readings.length > 0 && d.meanings.length > 0
+    )
+    assert.ok(due, 'expected a due vocabulary item with both reading and meaning')
+
+    // Reading correct -> graded correct, but the item is not scheduled yet.
+    const reading = await post('/api/review/answer', {
+      item_id: due.id,
+      input: due.readings[0],
+      question_type: 'reading',
+    })
+    assert.equal(reading.status, 200)
+    assert.equal(reading.body.correct, true)
+    const before = reading.body.item.srs_stage
+
+    // Meaning correct -> still not scheduled (the client decides the combined result).
+    const meaning = await post('/api/review/answer', {
+      item_id: due.id,
+      input: due.meanings[0],
+      question_type: 'meaning',
+    })
+    assert.equal(meaning.status, 200)
+    assert.equal(meaning.body.correct, true)
+    assert.equal(meaning.body.item.srs_stage, before, 'grading must not schedule')
+
+    // The client reports "both correct" -> advance one stage.
+    const scheduled = await post('/api/review/schedule', { item_id: due.id, correct: true })
+    assert.equal(scheduled.status, 200)
+    assert.equal(scheduled.body.item.srs_stage, before + 1)
+  })
+
+  it('resets an item to Apprentice I when the client reports a miss', async () => {
+    const review = await get(`/api/review/start?dataset=${srsDataset.id}&limit=20`)
+    const due: Card = review.body.due.find(
+      (d: Card) => d.readings.length > 0 && d.meanings.length > 0
+    )
+    assert.ok(due, 'expected a due vocabulary item with both reading and meaning')
+
+    // Advance it first so the reset (non-zero -> zero) is observable.
+    await post('/api/review/schedule', { item_id: due.id, correct: true })
+
+    // A wrong reading answer is graded incorrect; the client then schedules a reset.
+    const wrong = await post('/api/review/answer', {
+      item_id: due.id,
+      input: 'zzzzzz',
+      question_type: 'reading',
+    })
+    assert.equal(wrong.status, 200)
+    assert.equal(wrong.body.correct, false)
+
+    const scheduled = await post('/api/review/schedule', { item_id: due.id, correct: false })
+    assert.equal(scheduled.status, 200)
+    assert.equal(scheduled.body.item.srs_stage, 0)
+    assert.equal(scheduled.body.item.stage_name, 'Apprentice I')
   })
 })
