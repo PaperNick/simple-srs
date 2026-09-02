@@ -65,7 +65,7 @@ export function toRomaji(input: string): string {
       continue
     }
 
-    if (next && 'ゃゅょ'.includes(next)) {
+    if (next && 'ゃゅょぁぃぅぇぉ'.includes(next)) {
       const digraph = DIGRAPHS[char + next]
       if (digraph) {
         out += digraph
