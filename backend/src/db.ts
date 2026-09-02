@@ -452,14 +452,16 @@ function stats(db: DB): DatasetsResponse {
  * Open (creating if needed) the database, apply the schema and seed the
  * configured datasets.
  */
-function open(): DB {
+function open(seedDatasets = true): DB {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true })
   }
   const db = new Database(dbPath())
   db.pragma('journal_mode = WAL')
   createSchema(db)
-  seed(db)
+  if (seedDatasets) {
+    seed(db)
+  }
   return db
 }
 

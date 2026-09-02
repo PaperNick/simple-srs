@@ -7,22 +7,17 @@ type DB = Database.Database
 
 const HOUR = 60 * 60 * 1000
 
-function makeDb(): DB {
-  const db = new Database(':memory:')
-  db.exec(`
-    CREATE TABLE items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      srs_stage INTEGER NOT NULL,
-      available_at INTEGER
-    );
-  `)
-  return db
-}
+// Run against the production schema in an in-memory database.
+process.env.SIMPLE_SRS_DB = ':memory:'
 
 function insert(db: DB, stage: number): number {
   return Number(
-    db.prepare('INSERT INTO items (srs_stage, available_at) VALUES (?, ?)').run(stage, Date.now())
-      .lastInsertRowid
+    db
+      .prepare(
+        `INSERT INTO items (type, characters, readings, srs_stage, available_at, created_at)
+         VALUES ('vocabulary', '가', '[]', ?, ?, ?)`
+      )
+      .run(stage, Date.now(), Date.now()).lastInsertRowid
   )
 }
 
@@ -37,7 +32,7 @@ function get(db: DB, id: number): { id: number; srs_stage: number; available_at:
 describe('scheduleAfterAnswer', () => {
   let db: DB
   beforeEach(() => {
-    db = makeDb()
+    db = dbc.open(false)
   })
 
   it('advances one stage on a correct answer and schedules the next review', () => {
