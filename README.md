@@ -18,6 +18,12 @@ Monorepo with three projects:
 - [`frontend`](frontend)  React + Vite SPA (dev on `5173`; built and served by the backend on `3000`)
 - [`e2e`](e2e)  Playwright end-to-end suite (boots backend + frontend on `3100` / `5174`)
 
+## Support
+
+Simple SRS is free and open source. If it helps you learn, you can support me:
+
+[![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/papernick)
+
 ## Prerequisites
 
 - Node.js
