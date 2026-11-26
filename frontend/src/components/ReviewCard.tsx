@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Check } from 'lucide-react'
 import { reviewAnswer } from '../api'
@@ -26,17 +26,16 @@ interface ReviewCardProps {
   onNext: () => void
 }
 
-/**
- * Show a single review card: grade the typed answer, let the user override a
- * close miss, then report the final result and continue.
- */
-export default function ReviewCard({
-  item,
-  autoplay,
-  markCorrect,
-  onAnswered,
-  onNext,
-}: ReviewCardProps) {
+/** Imperative commit for finishing mid-card. */
+export interface ReviewCardHandle {
+  commit: () => void
+}
+
+/** Single review card: grade, allow an override, then continue. */
+const ReviewCard = forwardRef<ReviewCardHandle, ReviewCardProps>(function ReviewCard(
+  { item, autoplay, markCorrect, onAnswered, onNext },
+  ref
+) {
   const [phase, setPhase] = useState<'input' | 'result'>('input')
   const [result, setResult] = useState<Result | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -93,14 +92,16 @@ export default function ReviewCard({
     setPhase('result')
   }
 
-  // Report the final result to the parent exactly once, then advance.
-  const commit = () => {
+  // Report the result once so advance and early finish cannot double-count.
+  const commit = useCallback(() => {
     if (committedRef.current || !result) {
       return
     }
     committedRef.current = true
     onAnswered(result.correct)
-  }
+  }, [result, onAnswered])
+
+  useImperativeHandle(ref, () => ({ commit }), [commit])
 
   const advance = () => {
     commit()
@@ -154,14 +155,12 @@ export default function ReviewCard({
     return () => window.removeEventListener('keydown', handler)
   }, [isSelfGrade, phase, gradeSelf])
 
-  // Focus the input on each new item so you can type right away.
   useEffect(() => {
     if (phase === 'input' && inputRef.current) {
       inputRef.current.focus()
     }
   }, [phase])
 
-  // Auto-play audio on non-Meaning (Reading/self-grade) cards when answered.
   useAutoplay(item, phase === 'result' && autoplay && item.question_type !== 'meaning')
 
   // "p" plays the word audio once the card has been answered.
@@ -261,4 +260,6 @@ export default function ReviewCard({
       </div>
     </div>
   )
-}
+})
+
+export default ReviewCard

@@ -108,6 +108,14 @@ export default function App() {
     setView('practice')
   }, [])
 
+  // Only the lesson summary offers a review, and by then a dataset is selected.
+  const reviewCurrentDataset = useCallback(() => {
+    if (!currentDataset) {
+      return
+    }
+    openSession(currentDataset, 'review')
+  }, [currentDataset, openSession])
+
   const backToDashboard = useCallback(() => {
     setView('dashboard')
     refresh()
@@ -149,6 +157,7 @@ export default function App() {
             autoplayReview={autoplayReview}
             markCorrect={markCorrect}
             onDone={backToDashboard}
+            onReview={reviewCurrentDataset}
           />
         )}
         {view === 'practice' && (

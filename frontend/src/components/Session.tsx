@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import LessonCard from './LessonCard'
 import ReviewCard from './ReviewCard'
+import type { ReviewCardHandle } from './ReviewCard'
+import SessionSummary from './SessionSummary'
+import type { SummaryStat } from './SessionSummary'
 import { startLesson, startReview, completeLesson, reviewSchedule } from '../api'
+import { formatAccuracy, formatDuration } from '../format'
+import { shuffle } from '../shuffle'
 import type { Card, QuestionType, ReviewCard as ReviewCardType, SessionMode } from '@shared/types'
 
 interface SessionProps {
@@ -11,32 +16,62 @@ interface SessionProps {
   autoplayReview: boolean
   markCorrect: boolean
   onDone: () => void
+  onReview: () => void
 }
 
-/** Per-item progress for the current review: required types, those answered correctly, and whether it failed. */
+interface SessionStats {
+  answers: number
+  correct: number
+  wrong: number
+  items: Set<number>
+  burned: Set<number>
+}
+
+function emptyStats(): SessionStats {
+  return {
+    answers: 0,
+    correct: 0,
+    wrong: 0,
+    items: new Set(),
+    burned: new Set(),
+  }
+}
+
+function lessonSummary(learned: number, steps: number, elapsed: string): SummaryStat[] {
+  return [
+    { label: 'Words learned', value: learned },
+    { label: 'Lesson steps', value: steps },
+    { label: 'Time', value: elapsed },
+  ]
+}
+
+function reviewSummary(stats: SessionStats, elapsed: string): SummaryStat[] {
+  return [
+    { label: 'Items reviewed', value: stats.items.size },
+    { label: 'Correct', value: stats.correct },
+    { label: 'Missed', value: stats.wrong },
+    { label: 'Accuracy', value: formatAccuracy(stats.correct, stats.answers) },
+    { label: 'Burned', value: stats.burned.size },
+    { label: 'Time', value: elapsed },
+  ]
+}
+
+function LoadingView({ label }: { label: string }) {
+  return (
+    <div className="view">
+      <p className="loading">{label}</p>
+    </div>
+  )
+}
+
+/** Required question types, the ones answered correctly, and any miss. */
 interface ItemProgress {
   required: Set<QuestionType>
   correct: Set<QuestionType>
   failed: boolean
 }
 
-/** Return a new array with the items randomly shuffled. */
-function shuffle<T>(array: T[]): T[] {
-  const shuffled = [...array]
-  for (let index = shuffled.length - 1; index > 0; index--) {
-    const randomIndex = Math.floor(Math.random() * (index + 1))
-    const temporary = shuffled[index]
-    shuffled[index] = shuffled[randomIndex]
-    shuffled[randomIndex] = temporary
-  }
-  return shuffled
-}
-
-/**
- * Expand an item into review steps: a meaning step (if the item has a meaning)
- * and a reading step (if it has a reading). Items with neither are a single
- * self-grade step - they just need to be seen.
- */
+/** Meaning and reading steps, or one self-grade step if the item has neither. */
 function expandSteps(items: Card[]): ReviewCardType[] {
   return items.flatMap(item => {
     const steps: ReviewCardType[] = []
@@ -53,7 +88,7 @@ function expandSteps(items: Card[]): ReviewCardType[] {
   })
 }
 
-/** The question types an item must answer correctly before it can advance. */
+/** Question types needed to pass an item. */
 function requiredTypes(item: Card): QuestionType[] {
   const types: QuestionType[] = []
   if (item.readings.length) {
@@ -68,10 +103,7 @@ function requiredTypes(item: Card): QuestionType[] {
   return types
 }
 
-/**
- * Run a lesson or review session over a dataset, stepping through its cards and
- * completing the lesson (if in lesson mode) when the queue is exhausted.
- */
+/** Run a lesson or review queue. */
 export default function Session({
   mode,
   dataset,
@@ -79,12 +111,19 @@ export default function Session({
   autoplayReview,
   markCorrect,
   onDone,
+  onReview,
 }: SessionProps) {
   const [queue, setQueue] = useState<ReviewCardType[]>([])
   const [index, setIndex] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [finishing, setFinishing] = useState(false)
+  const [summary, setSummary] = useState<SummaryStat[] | null>(null)
   const doneRef = useRef(false)
   const progressRef = useRef<Map<number, ItemProgress>>(new Map())
+  const reviewCardRef = useRef<ReviewCardHandle>(null)
+  const statsRef = useRef<SessionStats>(emptyStats())
+  const pendingRef = useRef<Promise<unknown>[]>([])
+  const startedAtRef = useRef(0)
 
   const finish = useCallback(
     async (lessonIds?: number[] | null) => {
@@ -92,25 +131,42 @@ export default function Session({
         return
       }
       doneRef.current = true
-      if (mode === 'lesson' && lessonIds && lessonIds.length) {
+      setFinishing(true)
+
+      let learned = lessonIds?.length ?? 0
+      if (mode === 'lesson' && lessonIds?.length) {
         try {
-          await completeLesson(lessonIds)
+          const result = await completeLesson(lessonIds)
+          learned = result.learned
         } catch (_) {
-          /* ignore completion errors */
+          /* best effort */
         }
       }
-      onDone()
+
+      // Wait for pending schedule calls so burned counts are accurate.
+      await Promise.allSettled(pendingRef.current)
+
+      const elapsed = formatDuration(Date.now() - startedAtRef.current)
+      setSummary(
+        mode === 'lesson'
+          ? lessonSummary(learned, queue.length, elapsed)
+          : reviewSummary(statsRef.current, elapsed)
+      )
+      setFinishing(false)
     },
-    [mode, onDone]
+    [mode, queue.length]
   )
 
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       setLoading(true)
+      doneRef.current = false
+      progressRef.current = new Map()
+      statsRef.current = emptyStats()
+      pendingRef.current = []
       try {
-        // The backend returns due items in available_at order; shuffle the
-        // review queue so the ordering isn't predictable. Lessons keep order.
+        // Shuffle reviews; lessons keep their order.
         let steps: ReviewCardType[]
         if (mode === 'lesson') {
           const { items } = await startLesson(dataset)
@@ -118,10 +174,10 @@ export default function Session({
             return
           }
           if (!items.length) {
-            finish()
+            onDone()
             return
           }
-          // A lesson teaches a word in two steps: meaning, then reading.
+          // Lessons run meaning then reading.
           steps = expandSteps(items)
         } else {
           const { due } = await startReview(dataset)
@@ -129,11 +185,10 @@ export default function Session({
             return
           }
           if (!due.length) {
-            finish()
+            onDone()
             return
           }
-          // Each due item becomes a reading and/or meaning step, shuffled so the
-          // ordering isn't predictable. Track which types each item still needs.
+          // Shuffle steps and track each item's required types.
           steps = shuffle(expandSteps(due))
           const progress = new Map<number, ItemProgress>()
           for (const step of steps) {
@@ -147,10 +202,13 @@ export default function Session({
           }
           progressRef.current = progress
         }
+        startedAtRef.current = Date.now()
         setQueue(steps)
         setIndex(0)
       } catch (_) {
-        finish()
+        if (!cancelled) {
+          onDone()
+        }
       } finally {
         if (!cancelled) {
           setLoading(false)
@@ -161,24 +219,28 @@ export default function Session({
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, dataset])
+  }, [mode, dataset, onDone])
 
   const current = queue[index]
 
   const next = useCallback(() => setIndex(current => current + 1), [])
 
-  // Apply the SRS schedule for an item once its review is decided.
+  // Apply the SRS schedule and record burned items.
   const schedule = useCallback((itemId: number, correct: boolean) => {
-    reviewSchedule(itemId, correct).catch(() => {
-      /* ignore scheduling errors */
-    })
+    const pending = reviewSchedule(itemId, correct)
+      .then(response => {
+        if (response.item.burned) {
+          statsRef.current.burned.add(itemId)
+        }
+      })
+      .catch(() => {
+        /* ignore scheduling errors */
+      })
+    pendingRef.current.push(pending)
   }, [])
 
-  // Called after each review answer. A correct answer is recorded; once every
-  // required question type is correct (with no prior miss) the item advances.
-  // Any miss drops it to the first stage immediately and re-queues the card,
-  // and the item stays at the first stage for the rest of the session.
+  // Pass once all required types are correct without a miss. A miss resets and
+  // re-queues the card.
   const handleAnswered = useCallback(
     (correct: boolean) => {
       if (!current) {
@@ -188,12 +250,17 @@ export default function Session({
       if (!progress) {
         return
       }
+      const stats = statsRef.current
+      stats.items.add(current.id)
+      stats.answers += 1
       if (!correct) {
+        stats.wrong += 1
         progress.failed = true
         schedule(current.id, false)
         setQueue(q => [...q, current])
         return
       }
+      stats.correct += 1
       progress.correct.add(current.question_type)
       if (!progress.failed && progress.correct.size === progress.required.size) {
         schedule(current.id, true)
@@ -202,32 +269,67 @@ export default function Session({
     [current, schedule]
   )
 
-  useEffect(() => {
-    if (loading) {
+  // Commit the current card, then show the overview.
+  const finishReviewEarly = useCallback(() => {
+    reviewCardRef.current?.commit()
+    if (statsRef.current.answers === 0) {
+      onDone()
       return
     }
-    if (index >= queue.length) {
-      finish(mode === 'lesson' ? [...new Set(queue.map(item => item.id))] : null)
+    finish()
+  }, [finish, onDone])
+
+  useEffect(() => {
+    if (loading || queue.length === 0 || index < queue.length) {
+      return
     }
+    finish(mode === 'lesson' ? [...new Set(queue.map(item => item.id))] : null)
   }, [index, queue, loading, finish, mode])
 
-  if (loading) {
-    return (
-      <div className="view">
-        <p className="loading">Preparing session…</p>
-      </div>
-    )
+  if (summary) {
+    if (mode === 'lesson') {
+      return (
+        <SessionSummary mode="lesson" stats={summary} onDashboard={onDone} onReview={onReview} />
+      )
+    }
+    return <SessionSummary mode="review" stats={summary} onDashboard={onDone} />
   }
 
-  if (!current) {
-    return null
+  if (loading) {
+    return <LoadingView label="Preparing session…" />
   }
+
+  // `!current` is the frame between the queue ending and `finish` setting a summary.
+  if (finishing || !current) {
+    return <LoadingView label="Wrapping up…" />
+  }
+
+  const currentStep = Math.min(index + 1, queue.length)
+  const progress = queue.length ? (currentStep / queue.length) * 100 : 0
 
   return (
     <div className="view session-view">
-      <div className="session-progress">
-        {mode === 'lesson' ? 'Lesson' : 'Review'} {Math.min(index + 1, queue.length)} /{' '}
-        {queue.length}
+      <div className="session-meter">
+        <div className="session-meter-head">
+          <span className="session-meter-mode">
+            <span className="session-meter-dot" aria-hidden="true" />
+            {mode === 'lesson' ? 'Lesson' : 'Review'}
+          </span>
+          <span className="session-meter-count">
+            {currentStep}
+            <span className="session-meter-total">/ {queue.length}</span>
+          </span>
+        </div>
+        <div
+          className="session-meter-track"
+          role="progressbar"
+          aria-valuemin={1}
+          aria-valuemax={queue.length}
+          aria-valuenow={currentStep}
+          aria-label={`${mode === 'lesson' ? 'Lesson' : 'Review'} progress`}
+        >
+          <span className="session-meter-fill" style={{ width: `${progress}%` }} />
+        </div>
       </div>
       {mode === 'lesson' ? (
         <LessonCard
@@ -239,6 +341,7 @@ export default function Session({
         />
       ) : (
         <ReviewCard
+          ref={reviewCardRef}
           key={current.id + ':' + current.question_type}
           item={current}
           autoplay={autoplayReview}
@@ -249,9 +352,15 @@ export default function Session({
       )}
 
       <div className="below-card-actions">
-        <button className="ghost-link" onClick={onDone}>
-          Back to Dashboard
-        </button>
+        {mode === 'review' ? (
+          <button className="ghost-link" onClick={finishReviewEarly}>
+            Finish Review
+          </button>
+        ) : (
+          <button className="ghost-link" onClick={onDone}>
+            Back to Dashboard
+          </button>
+        )}
       </div>
     </div>
   )

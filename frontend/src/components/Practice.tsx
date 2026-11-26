@@ -3,11 +3,15 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Check, Flame, X } from 'lucide-react'
 import { getPracticeItems, practiceAnswer } from '../api'
 import { playItemAudio, useAutoplay } from '../audio'
+import { formatAccuracy, formatDuration } from '../format'
+import { shuffle } from '../shuffle'
 import { SHORTCUTS, isShortcut } from '../shortcuts'
 import AnswerInput from './AnswerInput'
 import { ItemDetails } from './LessonCard'
 import PlayAudioButton from './PlayAudioButton'
 import SelfGradeHints from './SelfGradeHints'
+import SessionSummary from './SessionSummary'
+import type { SummaryStat } from './SessionSummary'
 import ShortcutHints from './ShortcutHints'
 import type { Card } from '@shared/types'
 
@@ -26,32 +30,19 @@ interface PracticeProps {
   onStop: () => void
 }
 
-/** Return a new array with the items randomly shuffled. */
-function shuffle<T>(array: T[]): T[] {
-  const shuffled = [...array]
-  for (let index = shuffled.length - 1; index > 0; index--) {
-    const randomIndex = Math.floor(Math.random() * (index + 1))
-    const temporary = shuffled[index]
-    shuffled[index] = shuffled[randomIndex]
-    shuffled[randomIndex] = temporary
-  }
-  return shuffled
-}
-
-/**
- * Run the endless practice session: shuffle the items, grade each
- * reading, keep a running tally and loop forever until the user stops.
- */
+/** Endless practice session: grade cards until the user stops. */
 export default function Practice({ dataset, autoplay, markCorrect, onStop }: PracticeProps) {
-  const allRef = useRef<Card[]>([]) // full item set
-  const sequenceRef = useRef<Card[]>([]) // endless rotation
-  const positionRef = useRef(0) // current position in rotation
+  const allRef = useRef<Card[]>([])
+  const sequenceRef = useRef<Card[]>([])
+  const positionRef = useRef(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const startedAtRef = useRef(0)
 
   const [current, setCurrent] = useState<Card | null>(null)
   const [phase, setPhase] = useState<'input' | 'result'>('input')
   const [result, setResult] = useState<{ correct: boolean; revealed?: boolean } | null>(null)
   const [value, setValue] = useState('')
+  const [summary, setSummary] = useState(false)
   const [tally, setTally] = useState<Tally>({
     answered: 0,
     correct: 0,
@@ -63,7 +54,6 @@ export default function Practice({ dataset, autoplay, markCorrect, onStop }: Pra
   const advance = useCallback(() => {
     positionRef.current += 1
     if (positionRef.current >= sequenceRef.current.length) {
-      // Rotation exhausted -> refill with a fresh shuffle (keeps going forever)
       sequenceRef.current = sequenceRef.current.concat(shuffle(allRef.current))
     }
     setCurrent(sequenceRef.current[positionRef.current])
@@ -83,6 +73,7 @@ export default function Practice({ dataset, autoplay, markCorrect, onStop }: Pra
         allRef.current = items
         sequenceRef.current = shuffle(items)
         positionRef.current = 0
+        startedAtRef.current = Date.now()
         setCurrent(sequenceRef.current[0])
       } catch (_) {
         onStop()
@@ -94,16 +85,15 @@ export default function Practice({ dataset, autoplay, markCorrect, onStop }: Pra
     }
   }, [onStop, dataset])
 
-  // Keep the input focused so you can type right away on every new item.
   useEffect(() => {
-    if (phase === 'input' && inputRef.current) {
+    if (!summary && phase === 'input' && inputRef.current) {
       inputRef.current.focus()
     }
-  }, [phase])
+  }, [phase, summary])
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (!isShortcut(event, SHORTCUTS.playAudio)) {
+      if (summary || !isShortcut(event, SHORTCUTS.playAudio)) {
         return
       }
       if (phase !== 'result' || !current) {
@@ -113,30 +103,11 @@ export default function Practice({ dataset, autoplay, markCorrect, onStop }: Pra
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [phase, current])
+  }, [phase, current, summary])
 
-  // Auto-play the character audio once the card has been answered, when enabled.
-  useAutoplay(current, phase === 'result' && autoplay)
+  useAutoplay(current, !summary && phase === 'result' && autoplay)
 
-  const submit = async () => {
-    const input = value
-    if (!input || !input.trim()) {
-      if (inputRef.current) {
-        inputRef.current.focus()
-      }
-      return
-    }
-
-    let correct
-    try {
-      const response = await practiceAnswer(current!.id, input)
-      correct = response.correct
-    } catch (_) {
-      correct = false
-    }
-
-    setResult({ correct })
-    setPhase('result')
+  const recordAnswer = (correct: boolean) => {
     setTally(previous => {
       const streak = correct ? previous.streak + 1 : 0
       return {
@@ -147,41 +118,60 @@ export default function Practice({ dataset, autoplay, markCorrect, onStop }: Pra
         best: Math.max(previous.best, streak),
       }
     })
+  }
 
-    // Reinforce misses: bring the item back a few steps later.
-    if (!correct && current) {
-      const insertAt = Math.min(positionRef.current + 4, sequenceRef.current.length)
-      sequenceRef.current.splice(insertAt, 0, current)
+  // Bring a card back a few steps later so misses and reveals get repeated.
+  const requeue = (card: Card, offset: number) => {
+    const insertAt = Math.min(positionRef.current + offset, sequenceRef.current.length)
+    sequenceRef.current.splice(insertAt, 0, card)
+  }
+
+  const submit = async () => {
+    const card = current
+    const input = value.trim()
+    if (!card) {
+      return
+    }
+    if (!input) {
+      inputRef.current?.focus()
+      return
+    }
+
+    let correct = false
+    try {
+      const response = await practiceAnswer(card.id, input)
+      correct = response.correct
+    } catch (_) {
+      /* Treat a failed request as a miss. */
+    }
+
+    setResult({ correct })
+    setPhase('result')
+    recordAnswer(correct)
+    if (!correct) {
+      requeue(card, 4)
     }
   }
 
   const reveal = () => {
-    // Peek at the answer (neutral: does not affect the tally), then re-queue it.
+    if (!current) {
+      return
+    }
+    // Show the answer without scoring it, then re-queue the card.
     setResult({ correct: false, revealed: true })
     setPhase('result')
-    if (current) {
-      const insertAt = Math.min(positionRef.current + 2, sequenceRef.current.length)
-      sequenceRef.current.splice(insertAt, 0, current)
-    }
+    requeue(current, 2)
   }
 
-  // Self-grade a card that has nothing to type: the user decides if they knew it.
   const gradeSelf = (recalled: boolean) => {
+    if (!current) {
+      return
+    }
     setResult({ correct: recalled })
     setPhase('result')
-    setTally(previous => {
-      const streak = recalled ? previous.streak + 1 : 0
-      return {
-        answered: previous.answered + 1,
-        correct: previous.correct + (recalled ? 1 : 0),
-        wrong: previous.wrong + (recalled ? 0 : 1),
-        streak,
-        best: Math.max(previous.best, streak),
-      }
-    })
-    if (!recalled && current) {
-      const insertAt = Math.min(positionRef.current + 4, sequenceRef.current.length)
-      sequenceRef.current.splice(insertAt, 0, current)
+    recordAnswer(recalled)
+    if (!recalled) {
+      requeue(current, 4)
     }
   }
 
@@ -196,6 +186,15 @@ export default function Practice({ dataset, autoplay, markCorrect, onStop }: Pra
     }))
   }
 
+  // Practice is endless, so finishing is explicit.
+  const finishPractice = () => {
+    if (tally.answered === 0) {
+      onStop()
+      return
+    }
+    setSummary(true)
+  }
+
   const onKey = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (phase === 'input' && isShortcut(event, SHORTCUTS.submit)) {
       submit()
@@ -204,10 +203,10 @@ export default function Practice({ dataset, autoplay, markCorrect, onStop }: Pra
     }
   }
 
-  // On the result screen the input is disabled, so let Enter elsewhere act as "Next".
+  // Enter advances once the result screen disables the input.
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (!isShortcut(event, SHORTCUTS.next) || phase !== 'result') {
+      if (summary || !isShortcut(event, SHORTCUTS.next) || phase !== 'result') {
         return
       }
       event.preventDefault()
@@ -215,7 +214,7 @@ export default function Practice({ dataset, autoplay, markCorrect, onStop }: Pra
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [phase, advance])
+  }, [phase, advance, summary])
 
   // Self-grade cards are graded by keyboard: "missed it" or "got it".
   useEffect(() => {
@@ -223,7 +222,7 @@ export default function Practice({ dataset, autoplay, markCorrect, onStop }: Pra
       return
     }
     const handler = (event: KeyboardEvent) => {
-      if (phase !== 'input') {
+      if (summary || phase !== 'input') {
         return
       }
       if (isShortcut(event, SHORTCUTS.missedIt)) {
@@ -236,7 +235,19 @@ export default function Practice({ dataset, autoplay, markCorrect, onStop }: Pra
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [current, phase, gradeSelf])
+  }, [current, phase, gradeSelf, summary])
+
+  if (summary) {
+    const stats: SummaryStat[] = [
+      { label: 'Answered', value: tally.answered },
+      { label: 'Correct', value: tally.correct },
+      { label: 'Missed', value: tally.wrong },
+      { label: 'Accuracy', value: formatAccuracy(tally.correct, tally.answered) },
+      { label: 'Best streak', value: tally.best },
+      { label: 'Time', value: formatDuration(Date.now() - startedAtRef.current) },
+    ]
+    return <SessionSummary mode="practice" stats={stats} onDashboard={onStop} />
+  }
 
   if (!current) {
     return (
@@ -346,8 +357,8 @@ export default function Practice({ dataset, autoplay, markCorrect, onStop }: Pra
       </div>
 
       <div className="below-card-actions">
-        <button className="ghost-link" onClick={onStop}>
-          Back to Dashboard
+        <button className="ghost-link" onClick={finishPractice}>
+          Finish Practice
         </button>
       </div>
     </div>

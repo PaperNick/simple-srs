@@ -23,8 +23,29 @@ async function getJson<T>(page: Page, endpoint: string): Promise<T> {
   return (await response.json()) as T
 }
 
+/** Wait for a post-session summary and leave it via its dashboard action. */
+async function dismissSummary(page: Page): Promise<void> {
+  const summary = page.locator('.summary-overlay')
+  await expect(summary).toBeVisible()
+  await summary.getByRole('button', { name: 'Back to Dashboard' }).click()
+}
+
+/** End an endless practice session and dismiss the resulting overview. */
+async function finishPractice(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Finish Practice' }).click()
+  await dismissSummary(page)
+}
+
+interface CompleteLessonOptions {
+  /** Leave the lesson overview open instead of returning to the dashboard. */
+  dismiss?: boolean
+}
+
 /** Walk a lesson to completion: reveal each card, then continue until it finishes. */
-async function completeLesson(page: Page): Promise<void> {
+async function completeLesson(
+  page: Page,
+  { dismiss = true }: CompleteLessonOptions = {}
+): Promise<void> {
   const reveal = page.getByRole('button', { name: 'Reveal' })
   await expect(reveal).toBeVisible()
   for (let iteration = 0; iteration < 40; iteration++) {
@@ -38,6 +59,9 @@ async function completeLesson(page: Page): Promise<void> {
     await next.click()
     await page.waitForTimeout(150)
     if (/Finish Lesson/.test(label)) {
+      if (dismiss) {
+        await dismissSummary(page)
+      }
       break
     }
   }
@@ -258,8 +282,34 @@ test('alphabet practice: grading, tally, input clears, Enter advances, stop', as
     await page.getByRole('button', { name: 'Next' }).click()
   }
 
-  // Stop -> back to dashboard
-  await page.getByRole('button', { name: 'Back to Dashboard' }).click()
+  // Finish -> overview -> dashboard
+  await finishPractice(page)
+  await expect(page.locator('.brand')).toHaveText('Simple.SRS')
+})
+
+test('practice: finishing shows a session summary with stats', async ({ page }) => {
+  await page.goto('/')
+  const readingsByChar = await getHangulReadingsByChar(page)
+
+  await page
+    .getByRole('button', { name: /Practice/ })
+    .first()
+    .click()
+
+  const firstChar = (await page.locator('.banner-char').textContent())!.trim()
+  await page.locator('.answer-input').fill(readingsByChar[firstChar][0])
+  await page.getByRole('button', { name: 'Enter' }).click()
+  await expect(page.locator('.stat-chip.ok')).toHaveText('1')
+
+  await page.getByRole('button', { name: 'Finish Practice' }).click()
+
+  const summary = page.locator('.summary-overlay')
+  await expect(summary).toBeVisible()
+  await expect(summary).toContainText('Practice complete')
+  await expect(summary.locator('.summary-stat')).toHaveCount(6)
+  await expect(summary).toContainText('Accuracy')
+  await expect(summary).toContainText('Best streak')
+  await summary.getByRole('button', { name: 'Back to Dashboard' }).click()
   await expect(page.locator('.brand')).toHaveText('Simple.SRS')
 })
 
@@ -307,7 +357,7 @@ test('practice: self-grade cards accept/reject via button click', async ({ page 
   await expect(page.locator('.card')).toHaveClass(/result-incorrect/)
   await expect(page.locator('.stat-chip.no')).toHaveText('1')
 
-  await page.getByRole('button', { name: 'Back to Dashboard' }).click()
+  await finishPractice(page)
   await expect(page.locator('.brand')).toHaveText('Simple.SRS')
 })
 
@@ -319,19 +369,23 @@ test('practice: self-grade cards accept/reject via keyboard shortcut', async ({ 
 
   await expect(page.locator('.answer-input')).toHaveCount(0)
 
+  // Wait for the card's key handlers to mount before sending keys.
+  await expect(page.getByRole('button', { name: 'Got it' })).toBeEnabled()
+
   // Accept via keyboard shortcut -> green, correct tally increments.
   await page.keyboard.press('2')
   await expect(page.locator('.card')).toHaveClass(/result-correct/)
   await expect(page.locator('.stat-chip.ok')).toHaveText('1')
 
   await page.getByRole('button', { name: 'Next' }).click()
+  await expect(page.getByRole('button', { name: 'Missed it' })).toBeEnabled()
 
   // Reject via keyboard shortcut -> red, wrong tally increments.
   await page.keyboard.press('1')
   await expect(page.locator('.card')).toHaveClass(/result-incorrect/)
   await expect(page.locator('.stat-chip.no')).toHaveText('1')
 
-  await page.getByRole('button', { name: 'Back to Dashboard' }).click()
+  await finishPractice(page)
   await expect(page.locator('.brand')).toHaveText('Simple.SRS')
 })
 
@@ -355,7 +409,7 @@ test('practice: play button appears after answering', async ({ page }) => {
   const audioRes = await audioPromise
   expect(audioRes.ok()).toBeTruthy()
 
-  await page.getByRole('button', { name: 'Back to Dashboard' }).click()
+  await finishPractice(page)
   await expect(page.locator('.brand')).toHaveText('Simple.SRS')
 })
 
@@ -382,7 +436,7 @@ test('practice: auto-plays audio after answering when autoplay is enabled', asyn
   const audioRes = await audioPromise
   expect(audioRes.ok()).toBeTruthy()
 
-  await page.getByRole('button', { name: 'Back to Dashboard' }).click()
+  await finishPractice(page)
 })
 
 test('practice: self-grade cards auto-play audio when autoplay is enabled', async ({ page }) => {
@@ -469,7 +523,15 @@ test('word lesson walks meaning + reading steps and completes', async ({ page })
   await expect(page.locator('.subtitle-bar')).toContainText('Vocabulary')
   await expect(page.getByRole('button', { name: 'Reveal' })).toBeVisible()
 
-  await completeLesson(page)
+  await completeLesson(page, { dismiss: false })
+
+  // The lesson overview appears with its success stats and both follow-up actions.
+  const summary = page.locator('.summary-overlay')
+  await expect(summary).toBeVisible()
+  await expect(summary).toContainText('Lesson complete')
+  await expect(summary).toContainText('Words learned')
+  await expect(summary.getByRole('button', { name: 'Start Review' })).toBeVisible()
+  await summary.getByRole('button', { name: 'Back to Dashboard' }).click()
 
   // Back on the dashboard, SRS stats moved (some words are now learning)
   await expect(page.getByRole('button', { name: /Start Lesson/ })).toBeVisible()
@@ -609,8 +671,9 @@ test('word review: grading by meaning/reading, Enter to continue', async ({ page
   await page.keyboard.press('Enter')
   await expect(page.locator('.answer-input')).toHaveValue('')
 
-  // Stop back to dashboard
-  await page.getByRole('button', { name: 'Back to Dashboard' }).click()
+  // Finish the review and leave the overview.
+  await page.getByRole('button', { name: 'Finish Review' }).click()
+  await dismissSummary(page)
   await expect(page.locator('.brand')).toHaveText('Simple.SRS')
 })
 
@@ -664,4 +727,12 @@ test('word review: advances stage only when reading and meaning are both correct
 
   // The session finishes automatically; wait for the stage-1 count to bump.
   await expect.poll(() => stageCount(1), { timeout: 5_000 }).toBe(stage1Before + 1)
+
+  // Completion shows the review overview; its only action returns to the dashboard.
+  const summary = page.locator('.summary-overlay')
+  await expect(summary).toBeVisible()
+  await expect(summary).toContainText('Review complete')
+  await expect(summary).toContainText('Items reviewed')
+  await summary.getByRole('button', { name: 'Back to Dashboard' }).click()
+  await expect(page.locator('.brand')).toHaveText('Simple.SRS')
 })
