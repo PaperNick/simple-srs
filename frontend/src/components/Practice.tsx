@@ -8,6 +8,7 @@ import { shuffle } from '../shuffle'
 import { SHORTCUTS, isShortcut } from '../shortcuts'
 import AnswerInput from './AnswerInput'
 import { ItemDetails } from './LessonCard'
+import LoadingView from './LoadingView'
 import PlayAudioButton from './PlayAudioButton'
 import SelfGradeHints from './SelfGradeHints'
 import SessionSummary from './SessionSummary'
@@ -250,11 +251,7 @@ export default function Practice({ dataset, autoplay, markCorrect, onStop }: Pra
   }
 
   if (!current) {
-    return (
-      <div className="view">
-        <p className="loading">Warming up…</p>
-      </div>
-    )
+    return <LoadingView label="Warming up…" />
   }
 
   const hasAnswer = current.readings.length > 0
