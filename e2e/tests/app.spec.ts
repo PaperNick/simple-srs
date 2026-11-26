@@ -7,6 +7,15 @@ import type { Page, Response } from '@playwright/test'
  */
 test.describe.configure({ mode: 'serial' })
 
+// The app may default auto-play on. Keep the suite deterministic unless a test
+// explicitly opts in via enableAutoplay() (whose init script runs after this one).
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('simplesrs-autoplay-lesson', 'off')
+    localStorage.setItem('simplesrs-autoplay-review', 'off')
+  })
+})
+
 /** Fetch a JSON endpoint and assert the request succeeded. */
 async function getJson<T>(page: Page, endpoint: string): Promise<T> {
   const response = await page.request.get(endpoint)

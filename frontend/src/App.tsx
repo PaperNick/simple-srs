@@ -26,8 +26,14 @@ const effectiveTheme = (theme: Theme, systemDark: boolean): 'dark' | 'light' => 
 }
 
 /** Read/write a boolean flag persisted in localStorage as 'on'/'off'. */
-function useStoredFlag(key: string): [boolean, (next: boolean) => void] {
-  const [value, setValue] = useState(() => window.localStorage.getItem(key) === 'on')
+function useStoredFlag(key: string, defaultValue = false): [boolean, (next: boolean) => void] {
+  const [value, setValue] = useState(() => {
+    const stored = window.localStorage.getItem(key)
+    if (stored === null) {
+      return defaultValue
+    }
+    return stored === 'on'
+  })
   const set = (next: boolean) => {
     window.localStorage.setItem(key, next ? 'on' : 'off')
     setValue(next)
@@ -54,9 +60,9 @@ export default function App() {
   })
 
   // Separate auto-play toggles for lesson and review items.
-  const [autoplayLesson, setAutoplayLesson] = useStoredFlag(AUTOPLAY_LESSON_KEY)
-  const [autoplayReview, setAutoplayReview] = useStoredFlag(AUTOPLAY_REVIEW_KEY)
-  const [markCorrect, setMarkCorrect] = useStoredFlag(MARK_CORRECT_KEY)
+  const [autoplayLesson, setAutoplayLesson] = useStoredFlag(AUTOPLAY_LESSON_KEY, true)
+  const [autoplayReview, setAutoplayReview] = useStoredFlag(AUTOPLAY_REVIEW_KEY, true)
+  const [markCorrect, setMarkCorrect] = useStoredFlag(MARK_CORRECT_KEY, true)
 
   // Follow the OS colour-scheme so the 'system' theme tracks changes.
   useEffect(() => {
