@@ -138,7 +138,7 @@ Each script writes a deck JSON file, registers it in `backend/data/datasets.json
 
 ## Tests
 
-Run the whole suite (backend + e2e) with `npm test`.
+Run the whole suite (backend + frontend unit + e2e) with `npm test`.
 
 ### Backend
 
@@ -146,6 +146,14 @@ Unit tests for the Express API, grading, and SRS scheduling:
 
 ```bash
 npm run test:backend
+```
+
+### Frontend
+
+Vitest unit tests for the pure functions:
+
+```bash
+npm run test:frontend
 ```
 
 ### E2E

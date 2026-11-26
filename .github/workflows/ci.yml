@@ -37,6 +37,9 @@ jobs:
       - name: Run backend unit tests
         run: npm --prefix backend test
 
+      - name: Run frontend unit tests
+        run: npm --prefix frontend test
+
       - name: Install Playwright browser
         run: |
           cd e2e

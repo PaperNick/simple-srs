@@ -42,6 +42,16 @@ Preview the production build locally on `:4173`:
 npm run preview
 ```
 
+## Tests
+
+Vitest unit tests for the pure functions:
+
+```bash
+npm test
+# or watch mode
+npm run test:watch
+```
+
 ## Modes
 
 - **Practice** - endless, shuffled grinding of a dataset's items (e.g. the 40 Hangul jamo). No SRS; answer by typing the romanization. Runs until you navigate away. Shows a running tally (answered / correct / wrong / streak).
